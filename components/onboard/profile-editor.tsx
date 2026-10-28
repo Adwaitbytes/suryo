@@ -170,12 +170,12 @@ export function ProfileEditor({
           {DAYS.map((d) => {
             const h = hoursFor(d.key);
             return (
-              <div key={d.key} className="flex items-center justify-between gap-3">
-                <span className="w-24 text-[13px] text-fg-muted">{d.label}</span>
+              <div key={d.key} className="flex items-center gap-3">
+                <span className="w-20 shrink-0 text-[13px] text-fg-muted">{d.label}</span>
                 <div className="flex items-center gap-1.5">
-                  <input type="time" aria-label={`${d.label} opens`} className={cn(inputClass, "w-[104px] px-2 py-1.5 font-mono text-[13px]")} value={h.open} onChange={(e) => setHours(d.key, { open: e.target.value })} />
+                  <input type="time" aria-label={`${d.label} opens`} className={cn(inputClass, "w-[92px] px-2 py-1.5 font-mono text-[13px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden")} value={h.open} onChange={(e) => setHours(d.key, { open: e.target.value })} />
                   <span className="text-fg-faint">to</span>
-                  <input type="time" aria-label={`${d.label} closes`} className={cn(inputClass, "w-[104px] px-2 py-1.5 font-mono text-[13px]")} value={h.close} onChange={(e) => setHours(d.key, { close: e.target.value })} />
+                  <input type="time" aria-label={`${d.label} closes`} className={cn(inputClass, "w-[92px] px-2 py-1.5 font-mono text-[13px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden")} value={h.close} onChange={(e) => setHours(d.key, { close: e.target.value })} />
                 </div>
               </div>
             );

@@ -8,7 +8,7 @@ import { LIVE_VOICES } from "@/lib/onboard/extract";
 import { buildSlots, scheduleFromHours } from "@/lib/seed/reset";
 
 const UUID = /^[0-9a-f-]{36}$/i;
-const text = (max: number) => z.string().trim().max(max).refine((s) => !s.includes("—"), "Em dashes are not allowed");
+const text = (max: number) => z.string().trim().max(max).refine((s) => !s.includes("\u2014"), "Em dashes are not allowed");
 
 const patchSchema = z
   .object({

@@ -93,7 +93,17 @@ export async function getRunDetail(runId: string): Promise<RunDetail | null> {
   return { run: toSummary(run), results, categories: [...stats.values()].sort((a, b) => a.passed / a.total - b.passed / b.total || b.total - a.total) };
 }
 
-export async function latestRunDetail(): Promise<RunDetail | null> {
-  const [latest] = await listRuns(1);
-  return latest ? getRunDetail(latest.id) : null;
+/**
+ * The run the scorecard leads with: the one in progress, else the latest full suite run.
+ * A targeted rerun of a few scenarios never stands in for the overall score.
+ */
+export function headlineRunId(history: RunSummary[], active: RunSummary | null): string | null {
+  if (active) return active.id;
+  return (history.find((h) => h.total >= SCENARIOS.length) ?? history[0])?.id ?? null;
+}
+
+export async function scorecard(): Promise<{ active: RunSummary | null; latest: RunDetail | null; history: RunSummary[] }> {
+  const [history, active] = await Promise.all([listRuns(12), activeRun()]);
+  const id = headlineRunId(history, active);
+  return { active, latest: id ? await getRunDetail(id) : null, history };
 }

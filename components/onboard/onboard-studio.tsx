@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpRight, Globe, RotateCcw } from "lucide-react";
+import { ArrowUpRight, Globe, Loader2, RotateCcw } from "lucide-react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,10 @@ export function OnboardStudio() {
 
       <header className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl">
-          <a href="/" className="text-sm text-fg-subtle transition-colors hover:text-fg">
+          <Link href="/" className="text-sm text-fg-subtle transition-colors hover:text-fg">
             Suryo
-          </a>
-          <h1 className="font-display mt-4 text-[44px] leading-[1.02] text-fg sm:text-[64px]">Any business, live in under a minute.</h1>
+          </Link>
+          <h1 className="font-display mt-4 text-balance text-[44px] leading-[1.02] text-fg sm:text-[64px]">Any business, live in under a minute.</h1>
           <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-fg-muted">
             Paste a website. Suryo reads it, learns the services, prices and policies it publishes, and gives you a voice and chat agent that can answer and book.
           </p>
@@ -45,7 +46,7 @@ export function OnboardStudio() {
             startedAt={startedAt}
             finalMs={finalMs}
             running={running}
-            className={cn("text-[56px] leading-none transition-colors duration-300 sm:text-[72px]", phase === "idle" ? "text-fg-faint" : phase === "error" ? "text-danger" : "text-fg")}
+            className={cn("text-[56px] leading-none tracking-[-0.04em] transition-colors duration-300 sm:text-[72px]", phase === "idle" ? "text-fg-faint" : phase === "error" ? "text-danger" : "text-fg")}
           />
           <span className="mt-2 text-xs text-fg-subtle">
             {phase === "done" ? "Website to live agent" : phase === "error" ? "Stopped" : running ? "Elapsed" : "Target under 60 seconds"}
@@ -75,11 +76,19 @@ export function OnboardStudio() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             disabled={running}
-            className="h-12 min-w-0 flex-1 bg-transparent text-lg text-fg placeholder:text-fg-faint focus:outline-none disabled:opacity-70 sm:text-xl"
+            className="h-12 min-w-0 flex-1 bg-transparent text-lg text-fg placeholder:text-fg-faint disabled:opacity-70 sm:text-xl"
+            // The global focus ring is unlayered, so it outranks utilities; the field shows focus on its wrapper instead.
+            style={{ outline: "none" }}
           />
-          <Button type="submit" variant="primary" size="lg" disabled={running || !url.trim()} className="shrink-0">
-            {running ? "Onboarding" : phase === "done" ? "Onboard another" : "Onboard"}
-          </Button>
+          {running ? (
+            <Button type="button" variant="secondary" size="lg" aria-disabled className="pointer-events-none shrink-0">
+              <Loader2 className="size-4 animate-spin motion-reduce:animate-none" /> Onboarding
+            </Button>
+          ) : (
+            <Button type="submit" variant="primary" size="lg" disabled={!url.trim()} className="shrink-0">
+              {phase === "done" ? "Onboard another" : "Onboard"}
+            </Button>
+          )}
         </div>
         {phase === "idle" ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 pl-1 text-[13px] text-fg-subtle">
@@ -127,15 +136,16 @@ export function OnboardStudio() {
           {result ? (
             <div className="flex min-w-0 flex-col gap-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="font-display text-3xl text-fg">{result.profile.name}</h2>
+                <h2 className="font-display text-[40px] leading-[1.05] text-fg">{result.profile.name}</h2>
                 <a href={result.business.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[13px] text-fg-subtle transition-colors hover:text-fg">
                   {new URL(result.business.website).hostname}
                   <ArrowUpRight className="size-3.5" />
                 </a>
               </div>
-              {result.profile.description ? <p className="max-w-2xl text-[14px] leading-relaxed text-fg-muted">{result.profile.description}</p> : null}
-              <p className="text-xs text-fg-subtle">
-                {result.stats.pages} pages read, {result.stats.chunks} passages embedded, {result.stats.slots} open slots over the next 14 days
+              {result.profile.description ? <p className="line-clamp-3 max-w-2xl text-[14px] leading-relaxed text-fg-muted" title={result.profile.description}>{result.profile.description}</p> : null}
+              <p className="text-[13px] text-fg-subtle">
+                <span className="font-mono text-fg tabular">{result.stats.pages}</span> pages read, <span className="font-mono text-fg tabular">{result.stats.chunks}</span> passages embedded,{" "}
+                <span className="font-mono text-fg tabular">{result.stats.slots}</span> open slots over the next 14 days
                 {result.business.replaced ? ". Replaced the earlier agent for this website." : "."}
               </p>
               <ProfileEditor

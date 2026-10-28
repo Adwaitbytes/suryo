@@ -20,11 +20,11 @@ export function Timer({ startedAt, finalMs, running, className }: { startedAt: n
   const seconds = Math.floor(ms / 1000);
   const tenths = Math.floor((ms % 1000) / 100);
   return (
-    <span className={cn("font-mono tabular", className)} aria-live="off">
-      {String(seconds).padStart(2, "0")}
-      <span className="text-fg-faint">.</span>
+    <span role="timer" className={cn("font-mono tabular", className)} aria-live="off">
+      {seconds}
+      <span className="-mx-[0.18em] text-fg-faint">.</span>
       {tenths}
-      <span className="ml-1 text-[0.45em] text-fg-subtle">s</span>
+      <span className="ml-0.5 align-baseline text-[0.4em] text-fg-subtle">s</span>
     </span>
   );
 }

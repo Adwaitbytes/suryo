@@ -26,7 +26,7 @@ function businessFacts(bundle: NonNullable<BusinessBundle>): string {
     `Hours: ${business.profile.hours.map((h) => `${h.day} ${h.open ? `${h.open}-${h.close}` : "closed"}`).join(", ")}`,
     `Locations: ${locations.map((l) => `${l.name}: ${l.address}`).join(" | ")}`,
     `Team: ${staff.map((s) => `${s.name} (${s.title})`).join("; ")}`,
-    `Services: ${services.map((s) => `${s.name} INR ${s.priceInr ?? "n/a"}${s.priceNote ? ` (${s.priceNote})` : ""}`).join("; ")}`,
+    `Services: ${services.map((s) => `${s.name} (${s.durationMin} min) INR ${s.priceInr ?? "n/a"}${s.priceNote ? ` (${s.priceNote})` : ""}`).join("; ")}`,
     `Booking rules: ${business.profile.bookingRules.join(" ")}`,
     "Standing policy: for emergencies (heavy bleeding, swelling that affects breathing or swallowing, severe injury) tell the customer to call 108 or go to the nearest emergency.",
   ].join("\n");

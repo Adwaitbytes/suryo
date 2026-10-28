@@ -2,16 +2,16 @@
 
 import { Check, Copy, MessageSquare, Phone } from "lucide-react";
 import QRCode from "qrcode";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Panel } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
+const noop = () => () => {};
+
+/** The page origin is fixed for the life of the tab; empty during server render. */
 function useOrigin(): string {
-  const [origin, setOrigin] = useState("");
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
-  return origin;
+  return useSyncExternalStore(noop, () => window.location.origin, () => "");
 }
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -90,18 +90,18 @@ export function LivePanel({ slug, agentName, totalMs }: { slug: string; agentNam
         <div className="flex min-w-0 flex-col justify-center gap-2">
           <p className="text-[13px] leading-relaxed text-fg-muted">Scan to talk to {agentName} on your phone, or open the chat.</p>
           <div className="flex flex-wrap gap-2">
-            <a
+            <Link
               href={`/call/${slug}`}
               className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-3.5 text-sm font-medium text-accent-fg shadow-[0_1px_0_rgb(255_255_255/0.25)_inset] transition-colors hover:bg-accent-strong"
             >
               <Phone className="size-4" /> Call
-            </a>
-            <a
+            </Link>
+            <Link
               href={`/chat/${slug}`}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3.5 text-sm font-medium text-fg transition-colors hover:border-border-strong hover:bg-surface-3"
             >
               <MessageSquare className="size-4" /> Chat
-            </a>
+            </Link>
           </div>
         </div>
       </div>
@@ -114,7 +114,7 @@ export function LivePanel({ slug, agentName, totalMs }: { slug: string; agentNam
           <div key={row.label} className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-fg-subtle">{row.label}</div>
-              <div className="truncate font-mono text-[13px] text-fg">{row.value || <span className="skeleton inline-block h-3 w-40" />}</div>
+              <div className="truncate font-mono text-[13px] text-fg">{row.value.replace(/^https?:\/\//, "") || <span className="skeleton inline-block h-3 w-40" />}</div>
             </div>
             <CopyButton value={row.value} label={`Copy ${row.label.toLowerCase()}`} />
           </div>
