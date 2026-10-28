@@ -23,3 +23,16 @@ Running log of what shipped, newest last. Times are local (IST).
 - Haiku 5.5 thinks by default. That burned the output budget and stalled tool calls, so thinking is disabled for live turns.
 - The knowledge prefetch runs in parallel with history loading, so most FAQ answers need a single model call.
 - Tool audit writes and confirmation email are off the critical path.
+
+## Specialists and integration
+- Voice: Gemini Live call screen with barge in, verified with real speech in a browser. Median voice to first audio about 1.5 s on tool turns.
+- Chat, widget, demo site, landing, pitch route.
+- Operator console: SSE live view with polling fallback, takeover with drafted replies, CRM, follow ups, analytics, orders.
+- Onboarding from a URL (5 real sites, 12 to 34 s) and from documents (PDF, DOCX, TXT, MD, CSV, about 10 s); a prompt injection planted in a document was ignored.
+- Online store demo (Saanjh Studio, fictional): order tools with policy enforced in code.
+- Resilience: Gemini key pool with quota failover, cached embeddings with keyword fallback, voice model chain with auto reconnect.
+
+## Evals
+- 19 of 35, then 24 of 35, then 31 of 35 after fixing root causes in the agent.
+- 34 of 43 with store scenarios added, during which Embedding 1 hit its daily cap.
+- 37 of 43 after moving to Embedding 2 and re-embedding every chunk.

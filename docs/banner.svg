@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">Suryo</title>
+  <desc id="desc">The front desk that never misses a customer.</desc>
+  <defs>
+    <radialGradient id="glow" cx="82%" cy="50%" r="44%">
+      <stop offset="0" stop-color="#ff7a30" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#ff7a30" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#08080a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sun" cx="42%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#ffb07a"/>
+      <stop offset="0.55" stop-color="#ff7a30"/>
+      <stop offset="1" stop-color="#d9541a"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="420" fill="#08080a"/>
+  <rect width="1280" height="420" fill="url(#grid)"/>
+  <rect width="1280" height="420" fill="url(#glow)"/>
+
+  <!-- The sun: a calm disc with a ring of rays, the same mark the call screen animates. -->
+  <g transform="translate(1056 210)">
+    <circle r="150" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+    <circle r="112" fill="none" stroke="#ff7a30" stroke-opacity="0.18"/>
+    <g stroke="#ff7a30" stroke-linecap="round" stroke-opacity="0.75">
+      <line x1="0" y1="-86" x2="0" y2="-100" stroke-width="3"/>
+      <line x1="0" y1="86" x2="0" y2="100" stroke-width="3"/>
+      <line x1="-86" y1="0" x2="-100" y2="0" stroke-width="3"/>
+      <line x1="86" y1="0" x2="100" y2="0" stroke-width="3"/>
+      <line x1="60.8" y1="-60.8" x2="70.7" y2="-70.7" stroke-width="3"/>
+      <line x1="-60.8" y1="-60.8" x2="-70.7" y2="-70.7" stroke-width="3"/>
+      <line x1="60.8" y1="60.8" x2="70.7" y2="70.7" stroke-width="3"/>
+      <line x1="-60.8" y1="60.8" x2="-70.7" y2="70.7" stroke-width="3"/>
+      <line x1="32.9" y1="-79.5" x2="38.3" y2="-92.4" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="-32.9" y1="-79.5" x2="-38.3" y2="-92.4" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="79.5" y1="-32.9" x2="92.4" y2="-38.3" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="-79.5" y1="-32.9" x2="-92.4" y2="-38.3" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="79.5" y1="32.9" x2="92.4" y2="38.3" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="-79.5" y1="32.9" x2="-92.4" y2="38.3" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="32.9" y1="79.5" x2="38.3" y2="92.4" stroke-width="2" stroke-opacity="0.5"/>
+      <line x1="-32.9" y1="79.5" x2="-38.3" y2="92.4" stroke-width="2" stroke-opacity="0.5"/>
+    </g>
+    <circle r="70" fill="url(#sun)"/>
+  </g>
+
+  <!-- Wordmark and line -->
+  <g font-family="'Instrument Serif', Georgia, 'Times New Roman', serif" fill="#f4f4f5">
+    <text x="96" y="196" font-size="112" letter-spacing="-2">Suryo</text>
+  </g>
+  <g font-family="'Instrument Serif', Georgia, 'Times New Roman', serif">
+    <text x="100" y="262" font-size="38" fill="#a1a1aa">The front desk that <tspan fill="#ff7a30" font-style="italic">never misses</tspan> a customer.</text>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#71717a" letter-spacing="2">
+    <text x="100" y="330">VOICE  ·  CHAT  ·  REAL ACTIONS  ·  HUMAN TAKEOVER  ·  FOLLOW UPS</text>
+  </g>
+  <rect x="100" y="352" width="56" height="3" rx="1.5" fill="#ff7a30"/>
+</svg>
