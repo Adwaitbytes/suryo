@@ -330,7 +330,7 @@ function stageFor(tools: string[], current: string): string {
  * Stores per turn analysis and applies deterministic escalation rules, so safety
  * does not depend on the model remembering to call a tool. Returns a handoff reason if it escalated.
  */
-async function persistAnalysis(
+export async function persistAnalysis(
   conversationId: string,
   businessId: string,
   customerMessageId: string,

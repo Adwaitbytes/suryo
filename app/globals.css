@@ -103,8 +103,11 @@
   --text-2xs--line-height: 1rem;
 }
 
-* {
-  border-color: var(--border);
+/* Layered so Tailwind border color utilities can override the default. */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 html {

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push --force",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
-    "chat": "tsx --env-file=.env.local scripts/chat.ts"
+    "chat": "tsx --env-file=.env.local scripts/chat.ts",
+    "test": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.89",
@@ -47,7 +48,8 @@
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.5"
   },
   "packageManager": "pnpm@12.8.1",
   "type": "module"
