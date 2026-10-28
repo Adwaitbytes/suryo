@@ -67,13 +67,13 @@ export function useChat({ slug, initialConversationId }: { slug: string; initial
   // Restore a conversation from ?c= (voice to chat switch) or from this visitor's last visit.
   useEffect(() => {
     const candidate = initialConversationId && UUID.test(initialConversationId) ? initialConversationId : readStored(slug);
-    if (!candidate) {
-      setPhase("ready");
-      return;
-    }
     // An ignore flag rather than an abort: the restore is cheap and idempotent, and aborting shows up as a failed request.
     let ignore = false;
     (async () => {
+      if (!candidate) {
+        setPhase("ready");
+        return;
+      }
       try {
         const res = await fetch(`/api/conversations/${candidate}/messages`, { cache: "no-store" });
         if (ignore) return;
@@ -113,13 +113,17 @@ export function useChat({ slug, initialConversationId }: { slug: string; initial
     };
   }, []);
 
-  // Once a person may be involved, poll for operator replies; the stream alone cannot deliver them.
-  const watching = status === "human" || status === "escalated";
+  // An operator can take over at any moment from the console, and the stream cannot deliver their
+  // replies, so any live conversation is polled while the tab is visible.
   useEffect(() => {
-    if (!watching || !conversationId) return;
+    if (!conversationId) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
+      if (document.visibilityState !== "visible") {
+        if (!stopped) timer = setTimeout(tick, POLL_MS);
+        return;
+      }
       try {
         const after = cursorRef.current ? `?after=${encodeURIComponent(cursorRef.current)}` : "";
         const res = await fetch(`/api/conversations/${conversationId}/messages${after}`, { cache: "no-store" });
@@ -147,7 +151,7 @@ export function useChat({ slug, initialConversationId }: { slug: string; initial
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [watching, conversationId]);
+  }, [conversationId]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 

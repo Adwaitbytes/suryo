@@ -154,7 +154,7 @@ export function ChatView({ slug, businessName, agentName, embed, initialConversa
           {!online ? (
             <Banner key="offline" tone="warning" reduce={reduce}>
               <WifiOff aria-hidden className="size-3.5" />
-              You are offline. Messages will send once you reconnect.
+              You are offline. Reconnect to keep chatting.
             </Banner>
           ) : humanActive ? (
             <Banner key="human" tone="success" reduce={reduce}>
