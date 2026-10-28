@@ -3,7 +3,11 @@ import { embed, embedMany } from "ai";
 import { withGeminiKey } from "@/lib/ai/keys";
 import { EMBEDDING_DIMENSIONS } from "@/lib/db/schema";
 
-const MODEL = "gemini-embedding-001";
+/**
+ * Every stored vector must come from the same model, so changing this requires
+ * `scripts/reembed.ts`. Embedding 2 replaced 001 after 001's daily quota ran out mid demo.
+ */
+const MODEL = process.env.EMBEDDING_MODEL ?? "gemini-embedding-2";
 
 const providerOptions = (taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY") => ({
   google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType },

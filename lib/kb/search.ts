@@ -75,11 +75,21 @@ export function toSourceRef(hit: KnowledgeHit): SourceRef {
   return { id: hit.id, title: hit.title, url: hit.url, score: hit.score };
 }
 
+/** Any word may match, so Hinglish questions still find English passages that share a few terms. */
+function orQuery(query: string): string {
+  const words = query
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+  return [...new Set(words)].join(" | ") || "''";
+}
+
 /** Keyword only fallback. Confidence is scaled so a strong multi term match clears MIN_CONFIDENCE. */
 async function lexicalSearch(businessId: string, query: string, limit: number): Promise<{ hits: KnowledgeHit[]; confidence: number }> {
   const rows = await db.execute<{ id: string; title: string; content: string; source_url: string | null; rank: number }>(sql`
     select id, title, content, source_url, ts_rank_cd(tsv, q) as rank
-    from kb_chunks, websearch_to_tsquery('simple', ${query.replace(/[^\p{L}\p{N}\s]/gu, " ")}) q
+    from kb_chunks, to_tsquery('simple', ${orQuery(query)}) q
     where business_id = ${businessId} and tsv @@ q
     order by rank desc limit ${limit}`);
   const hits = rows.rows.map((r) => ({
