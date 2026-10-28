@@ -16,7 +16,7 @@ if (!bundle) throw new Error(`No business ${slug}`);
 const conversation = await startConversation(bundle, "voice", true);
 
 const t0 = Date.now();
-const { token, model } = await mintVoiceToken(bundle);
+const { token, model } = await mintVoiceToken(bundle, Number(process.env.VOICE_ATTEMPT ?? 0));
 console.log(`token minted in ${Date.now() - t0} ms (${token.slice(0, 12)}...)`);
 
 const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: "v1alpha" } });

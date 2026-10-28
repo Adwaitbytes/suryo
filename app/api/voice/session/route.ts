@@ -1,5 +1,5 @@
 import { loadBusiness } from "@/lib/agent/business";
-import { startConversation } from "@/lib/agent/run";
+import { getConversation, startConversation } from "@/lib/agent/run";
 import { error, json } from "@/lib/http";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { voiceSessionRequestSchema, type VoiceSessionResponse } from "@/lib/voice/protocol";
@@ -17,12 +17,13 @@ export async function POST(req: Request) {
 
   let token: Awaited<ReturnType<typeof mintVoiceToken>>;
   try {
-    token = await mintVoiceToken(bundle);
+    token = await mintVoiceToken(bundle, body.data.attempt);
   } catch (err) {
     console.error("[voice/session] token mint failed", err);
     return error(502, "The voice line is unavailable right now. Chat is still open.");
   }
-  const conversation = await startConversation(bundle, "voice");
+  const existing = body.data.conversationId ? await getConversation(bundle, body.data.conversationId) : null;
+  const conversation = existing && !existing.endedAt ? existing : await startConversation(bundle, "voice");
   const response: VoiceSessionResponse = {
     conversationId: conversation.id,
     token: token.token,

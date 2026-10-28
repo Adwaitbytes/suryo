@@ -5,6 +5,9 @@ import type { Card, ConversationStatus } from "@/lib/contracts";
 
 export const voiceSessionRequestSchema = z.object({
   business: z.string().min(1).max(80),
+  /** Present when reconnecting a dropped call, so it continues the same conversation. */
+  conversationId: z.string().uuid().optional(),
+  attempt: z.number().int().min(0).max(8).default(0),
 });
 
 export type VoiceSessionResponse = {
@@ -46,3 +49,4 @@ export type VoiceTurnResponse = {
 
 /** Text sent as the first client turn so the agent opens the call with its greeting. */
 export const CALL_CONNECTED_CUE = "(call connected)";
+export const CALL_RESUMED_CUE = "(call reconnected)";

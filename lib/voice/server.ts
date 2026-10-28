@@ -11,9 +11,9 @@ import { z } from "zod";
 import { ACTION_DESCRIPTIONS, ACTION_NAMES, actionSchemas, toolsFor, type ActionName } from "@/lib/agent/actions";
 import type { BusinessBundle } from "@/lib/agent/business";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
-import { VOICE_MODEL } from "@/lib/ai/models";
-import { env } from "@/lib/env";
-import { CALL_CONNECTED_CUE } from "./protocol";
+import { VOICE_MODELS } from "@/lib/ai/models";
+import { withGeminiKey } from "@/lib/ai/keys";
+import { CALL_CONNECTED_CUE, CALL_RESUMED_CUE } from "./protocol";
 
 type Bundle = NonNullable<BusinessBundle>;
 
@@ -52,6 +52,7 @@ function voiceSystemInstruction(bundle: Bundle): string {
 
 CALL FLOW
 - The call starts with the message "${CALL_CONNECTED_CUE}". Reply only with your greeting, in English: "${persona.greeting}"
+- If a message starts with "${CALL_RESUMED_CUE}", the line dropped and came back. It includes the conversation so far. Say one short line like "Sorry, the line dipped, I am back" in the caller's language and continue exactly where you left off. Do not greet again.
 - Tools run while the caller waits in silence, so call them straight away and speak once you have the answer.
 - After check_availability, say one or two specific options out loud, for example "Thursday at 5 PM with Dr. Mehta at Vijay Nagar". Never just say that slots exist.
 - Tool results contain ids. Use them in later tool calls, but never say an id out loud.`;
@@ -87,20 +88,24 @@ const NEW_SESSION_WINDOW_MS = 2 * 60_000;
  * Mints a single use ephemeral token with the model, prompt and tools locked server side,
  * so the browser never sees the API key and cannot repurpose the session.
  */
-export async function mintVoiceToken(bundle: Bundle): Promise<{ token: string; model: string }> {
-  const ai = new GoogleGenAI({ apiKey: env().GEMINI_API_KEY, httpOptions: { apiVersion: "v1alpha" } });
-  const now = Date.now();
-  const token = await ai.authTokens.create({
-    config: {
-      uses: 1,
-      expireTime: new Date(now + TOKEN_TTL_MS).toISOString(),
-      newSessionExpireTime: new Date(now + NEW_SESSION_WINDOW_MS).toISOString(),
-      liveConnectConstraints: { model: VOICE_MODEL, config: liveConnectConfig(bundle) },
-      httpOptions: { apiVersion: "v1alpha" },
-    },
+export async function mintVoiceToken(bundle: Bundle, attempt = 0): Promise<{ token: string; model: string }> {
+  const model = VOICE_MODELS[attempt % VOICE_MODELS.length];
+  // Keys rotate per call, so each account's Live quota carries part of the load.
+  return withGeminiKey(async (apiKey) => {
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion: "v1alpha" } });
+    const now = Date.now();
+    const token = await ai.authTokens.create({
+      config: {
+        uses: 1,
+        expireTime: new Date(now + TOKEN_TTL_MS).toISOString(),
+        newSessionExpireTime: new Date(now + NEW_SESSION_WINDOW_MS).toISOString(),
+        liveConnectConstraints: { model, config: liveConnectConfig(bundle) },
+        httpOptions: { apiVersion: "v1alpha" },
+      },
+    });
+    if (!token.name) throw new Error("Gemini returned an auth token without a name");
+    return { token: token.name, model };
   });
-  if (!token.name) throw new Error("Gemini returned an auth token without a name");
-  return { token: token.name, model: VOICE_MODEL };
 }
 
 /** Compact record of tool outcomes so a chat continuation can still refer to slots and bookings. */

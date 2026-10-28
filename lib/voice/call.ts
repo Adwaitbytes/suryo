@@ -1,12 +1,14 @@
 import { GoogleGenAI, Modality, type FunctionCall, type FunctionResponse, type LiveServerMessage, type Session } from "@google/genai";
 import type { Card, ConversationStatus } from "@/lib/contracts";
 import { MicCapture, MicError, PcmPlayer, analyserLevel, openMicrophone, sampleRateFromMime, INPUT_MIME, type MicFrame } from "./audio";
-import { CALL_CONNECTED_CUE, type VoiceSessionResponse, type VoiceToolStreamLine, type VoiceTurnRequest, type VoiceTurnResponse } from "./protocol";
+import { CALL_CONNECTED_CUE, CALL_RESUMED_CUE, type VoiceSessionResponse, type VoiceToolStreamLine, type VoiceTurnRequest, type VoiceTurnResponse } from "./protocol";
 import { TOOL_LABELS } from "./labels";
 
 export type CallPhase = "idle" | "starting" | "connecting" | "live" | "human" | "ended" | "error";
 export type AgentActivity = "listening" | "thinking" | "speaking";
 export type CallErrorKind = "mic-denied" | "mic-unavailable" | "session" | "dropped" | "rate-limited";
+
+const MAX_RECONNECTS = 3;
 
 export type Caption = {
   id: string;
@@ -68,6 +70,9 @@ export class VoiceCall {
   private player: PcmPlayer | null = null;
   private session: Session | null = null;
   private closingIntentionally = false;
+  /** Model fallback index; bumped on every automatic reconnect. */
+  private attempt = 0;
+  private reconnects = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollInFlight = false;
   private lastSeenAt: string | null = null;
@@ -196,22 +201,15 @@ export class VoiceCall {
     this.set({ conversationId: session.conversationId, agentName: session.agentName, businessName: session.businessName });
 
     try {
-      const ai = new GoogleGenAI({ apiKey: session.token, httpOptions: { apiVersion: "v1alpha" } });
-      this.closingIntentionally = false;
-      this.session = await ai.live.connect({
-        model: session.model,
-        // Everything else (prompt, tools, voice, transcription) is locked into the token server side.
-        config: { responseModalities: [Modality.AUDIO] },
-        callbacks: {
-          onmessage: (message) => this.onServerMessage(message),
-          onerror: () => this.onSocketLost("The line dropped. Check your connection and call again."),
-          onclose: (event) => {
-            if (!this.closingIntentionally) {
-              this.onSocketLost(event.reason ? `The call ended unexpectedly: ${event.reason}` : "The line dropped. Check your connection and call again.");
-            }
-          },
-        },
-      });
+      try {
+        await this.openLive(session);
+      } catch (first) {
+        // The first model may be out of quota; try the next one before telling the caller.
+        reportBackground("voice connect failed, trying the next model", first);
+        this.attempt += 1;
+        session = await this.createSession(session.conversationId);
+        await this.openLive(session);
+      }
     } catch (err) {
       await this.teardownAudio();
       void this.endConversation("abandoned");
@@ -220,7 +218,7 @@ export class VoiceCall {
     }
 
     this.set({ phase: "live", activity: "thinking", connectedAt: Date.now() });
-    this.session.sendClientContent({ turns: CALL_CONNECTED_CUE, turnComplete: true });
+    this.session?.sendClientContent({ turns: CALL_CONNECTED_CUE, turnComplete: true });
     this.startPolling();
   }
 
@@ -282,6 +280,8 @@ export class VoiceCall {
   }
 
   private reset(): void {
+    this.attempt = 0;
+    this.reconnects = 0;
     this.customerBuffer = "";
     this.nextCustomerBuffer = "";
     this.agentBuffer = "";
@@ -309,11 +309,55 @@ export class VoiceCall {
     });
   }
 
-  private async createSession(): Promise<VoiceSessionResponse> {
+  private async openLive(session: VoiceSessionResponse): Promise<void> {
+    const ai = new GoogleGenAI({ apiKey: session.token, httpOptions: { apiVersion: "v1alpha" } });
+    this.closingIntentionally = false;
+    this.session = await ai.live.connect({
+      model: session.model,
+      // Everything else (prompt, tools, voice, transcription) is locked into the token server side.
+      config: { responseModalities: [Modality.AUDIO] },
+      callbacks: {
+        onmessage: (message) => this.onServerMessage(message),
+        onerror: () => this.onSocketLost("The line dropped. Check your connection and call again."),
+        onclose: (event) => {
+          if (!this.closingIntentionally) {
+            this.onSocketLost(event.reason ? `The call ended unexpectedly: ${event.reason}` : "The line dropped. Check your connection and call again.");
+          }
+        },
+      },
+    });
+  }
+
+  /**
+   * A dropped line (network blip, quota, model hiccup) reconnects on the next voice model
+   * with the transcript so far, so the caller hears "I am back" instead of silence.
+   */
+  private async reconnect(message: string): Promise<void> {
+    const { conversationId } = this.state;
+    this.reconnects += 1;
+    this.attempt += 1;
+    this.player?.flush();
+    this.set({ activity: "thinking" });
+    try {
+      const session = await this.createSession(conversationId ?? undefined);
+      await this.openLive(session);
+      const recent = this.state.captions
+        .filter((c) => c.text.trim())
+        .slice(-8)
+        .map((c) => `${c.role === "customer" ? "Caller" : c.role === "human" ? "Staff" : "You"}: ${c.text}`)
+        .join("\n");
+      this.session?.sendClientContent({ turns: `${CALL_RESUMED_CUE}\nConversation so far:\n${recent || "(nothing yet)"}`, turnComplete: true });
+    } catch (err) {
+      reportBackground("voice reconnect failed", err);
+      this.failCall(message);
+    }
+  }
+
+  private async createSession(conversationId?: string): Promise<VoiceSessionResponse> {
     const res = await fetch("/api/voice/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ business: this.business }),
+      body: JSON.stringify({ business: this.business, conversationId, attempt: this.attempt }),
     });
     if (!res.ok) throw new HttpError(res.status, await errorMessage(res, "We could not reach the voice line."));
     return (await res.json()) as VoiceSessionResponse;
@@ -346,6 +390,14 @@ export class VoiceCall {
   private onSocketLost(message: string): void {
     if (this.state.phase !== "live" && this.state.phase !== "connecting") return;
     this.session = null;
+    if (this.state.phase === "live" && this.reconnects < MAX_RECONNECTS) {
+      void this.reconnect(message);
+      return;
+    }
+    this.failCall(message);
+  }
+
+  private failCall(message: string): void {
     this.stopPolling();
     void this.teardownAudio();
     void this.endConversation("abandoned");
