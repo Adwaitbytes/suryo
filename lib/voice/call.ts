@@ -10,6 +10,21 @@ export type CallErrorKind = "mic-denied" | "mic-unavailable" | "session" | "drop
 
 const MAX_RECONNECTS = 3;
 
+/** Level a caller's voice reaches when talking over the agent; speaker echo stays well below it. */
+const BARGE_IN_RMS = 0.05;
+
+const silenceCache = new Map<number, string>();
+/** A base64 PCM16 frame of zeros the same size as the given frame, cached per size. */
+function silenceFor(base64: string): string {
+  const bytes = Math.floor((base64.length * 3) / 4) - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+  let silent = silenceCache.get(bytes);
+  if (!silent) {
+    silent = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    silenceCache.set(bytes, silent);
+  }
+  return silent;
+}
+
 export type Caption = {
   id: string;
   role: "customer" | "agent" | "human";
@@ -424,7 +439,11 @@ export class VoiceCall {
 
   private onMicFrame(frame: MicFrame): void {
     if (this.state.muted || this.state.phase !== "live" || !this.session) return;
-    this.session.sendRealtimeInput({ audio: { data: frame.base64, mimeType: INPUT_MIME } });
+    // Echo gate: while the agent is talking, its own voice leaking from the speaker must not
+    // reach the server as "the caller interrupted". Quiet frames are replaced by silence and
+    // only clearly louder speech passes through, so real barge in still works instantly.
+    const echo = this.player?.playing === true && frame.rms < Math.max(BARGE_IN_RMS, this.noiseFloor * SPEECH_FACTOR * 2);
+    this.session.sendRealtimeInput({ audio: { data: echo ? silenceFor(frame.base64) : frame.base64, mimeType: INPUT_MIME } });
 
     const now = performance.now();
     const speaking = frame.rms > Math.max(SPEECH_MIN_RMS, this.noiseFloor * SPEECH_FACTOR);

@@ -68,7 +68,9 @@ export function liveConnectConfig(bundle: Bundle): LiveConnectConfig {
     outputAudioTranscription: {},
     realtimeInputConfig: {
       automaticActivityDetection: {
-        startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+        // Low start sensitivity: residual speaker echo and room noise were triggering false
+        // interruptions that cut the agent off mid sentence. A real "wait, 7 baje?" still interrupts.
+        startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
         endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
         prefixPaddingMs: 120,
         // Short enough to feel snappy, long enough not to cut off a caller pausing mid sentence.
