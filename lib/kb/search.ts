@@ -61,3 +61,7 @@ export async function searchKnowledge(
 
 /** Below this cosine similarity the knowledge base does not cover the question. */
 export const MIN_CONFIDENCE = 0.62;
+
+export function toSourceRef(hit: KnowledgeHit): SourceRef {
+  return { id: hit.id, title: hit.title, url: hit.url, score: hit.score };
+}

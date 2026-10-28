@@ -1,6 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { fastModel, strongModel } from "@/lib/ai/models";
+import { CLASSIFIER_OPTIONS, classifierModel, strongModel } from "@/lib/ai/models";
 import { businessProfileSchema, type BusinessProfile, type Persona } from "@/lib/contracts";
 import type { CrawledPage } from "./crawl";
 import { OnboardError } from "./url";
@@ -41,7 +41,7 @@ function promptFromPages(pages: CrawledPage[]): string {
   return parts.join("\n\n");
 }
 
-const stripDashes = (s: string) => s.replace(/\s*[—–]\s*/g, ", ").trim();
+const stripDashes = (s: string) => s.replace(/\s*[\u2014\u2013]\s*/g, ", ").trim();
 
 function normaliseTime(value: string): string {
   const m = value.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -121,7 +121,8 @@ export async function generatePersona(profile: BusinessProfile, signal?: AbortSi
   };
   try {
     const { output } = await generateText({
-      model: fastModel(),
+      model: classifierModel(),
+      providerOptions: CLASSIFIER_OPTIONS,
       output: Output.object({ schema: personaOutputSchema }),
       system:
         "You design the voice and chat persona of a business's front desk agent. Match the brand's tone. Plain words, no cliches, no exclamation marks, no emojis, no em dashes. Never claim to be human.",

@@ -10,7 +10,7 @@ import { analyzeTurn, heuristicAnalysis } from "./analysis";
 import type { BusinessBundle } from "./business";
 import { escalateConversation } from "./escalation";
 import { buildSystemPrompt, slotLine } from "./prompt";
-import { MIN_CONFIDENCE, searchKnowledge } from "@/lib/kb/search";
+import { MIN_CONFIDENCE, searchKnowledge, toSourceRef } from "@/lib/kb/search";
 
 type Bundle = NonNullable<BusinessBundle>;
 
@@ -216,7 +216,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
         ],
       },
     );
-    const refs = top.map(({ content: _c, ...ref }) => ref);
+    const refs = top.map(toSourceRef);
     sources.push(...refs);
     yield { type: "sources", sources: refs };
   }
@@ -240,7 +240,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
       while (queue.length) yield queue.shift() as StreamEvent;
       if (part.type === "text-delta") {
         if (firstTokenMs === null) firstTokenMs = Date.now() - started;
-        const delta = part.text.replace(/—/g, ", ");
+        const delta = part.text.replace(/\u2014/g, ", ");
         reply += delta;
         yield { type: "text", delta };
       } else if (part.type === "text-end" && reply && !/\s$/.test(reply)) {

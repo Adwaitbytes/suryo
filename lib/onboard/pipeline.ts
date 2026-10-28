@@ -70,7 +70,8 @@ export async function onboardSite(rawUrl: string, emit: (event: OnboardEvent) =>
       return vectors;
     });
     const extraction = extractProfile(pages, signal).then((r) => {
-      step("extract", "done", r.profile.name, `${r.profile.services.length} services, ${r.profile.hours.filter((h) => h.open).length} open days`);
+      const openDays = r.profile.hours.filter((h) => h.open).length;
+      step("extract", "done", r.profile.name, `${r.profile.services.length} services, ${openDays ? `${openDays} open days` : "no published hours"}`);
       return r;
     });
     // Both tracks are awaited together so neither rejection goes unhandled.
@@ -94,7 +95,7 @@ export async function onboardSite(rawUrl: string, emit: (event: OnboardEvent) =>
     const totalMs = elapsed();
     await db.update(schema.businesses).set({ onboardMs: totalMs }).where(eq(schema.businesses.id, created.id));
     invalidateBusiness();
-    step("calendar", "done", `${created.slots} open slots`, `${profile.bookableOffering}, 30 minutes, next 14 days`);
+    step("calendar", "done", `${created.slots} open slots`, `${profile.bookableOffering}, 30 minutes, next 14 days${profile.hours.some((h) => h.open) ? "" : ", default weekday hours"}`);
 
     step("live", "done", `${persona.agentName} is live`, `/${created.slug}`);
     emit({

@@ -225,7 +225,7 @@ export async function resetClinicState(businessId?: string): Promise<{ ms: numbe
       });
     });
   }
-  const insertedConvs = await db.insert(schema.conversations).values(convRows.map(({ _t, ...c }) => c)).returning();
+  const insertedConvs = await db.insert(schema.conversations).values(convRows.map(withoutTemplateIndex)).returning();
 
   const msgRows: Array<typeof schema.messages.$inferInsert> = [];
   const toolRows: Array<typeof schema.toolCalls.$inferInsert> = [];
@@ -292,4 +292,10 @@ function mulberry32(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function withoutTemplateIndex<T extends { _t: number }>(row: T): Omit<T, "_t"> {
+  const copy: Partial<T> = { ...row };
+  delete copy._t;
+  return copy as Omit<T, "_t">;
 }

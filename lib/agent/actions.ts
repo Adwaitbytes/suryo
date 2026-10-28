@@ -4,7 +4,7 @@ import { db, schema } from "@/lib/db";
 import type { Card } from "@/lib/contracts";
 import { emit } from "@/lib/events";
 import { emailHtml, formatForEmail, sendEmail } from "@/lib/notify/email";
-import { searchKnowledge, MIN_CONFIDENCE } from "@/lib/kb/search";
+import { searchKnowledge, MIN_CONFIDENCE, toSourceRef } from "@/lib/kb/search";
 import { TIME_WINDOWS, addDaysIso, formatSlot, istToUtc, todayIso, type TimeWindow } from "@/lib/time";
 import { loadBusiness, matchLocation, matchService, matchStaff, type BusinessBundle } from "./business";
 
@@ -213,7 +213,7 @@ const handlers: Handlers = {
           : "The knowledge base does not cover this. Say so honestly and offer a callback or a human.",
         passages: covered ? hits.map((h) => ({ title: h.title, text: h.content })) : [],
       },
-      sources: covered ? hits.map(({ content: _c, ...ref }) => ref) : [],
+      sources: covered ? hits.map(toSourceRef) : [],
     };
   },
 
