@@ -462,6 +462,20 @@ const handlers: Handlers = {
       priceInr: service?.priceInr ?? null,
       status: "confirmed",
     };
+    // Cancel then book for the same service in one conversation is a reschedule; record it as one in the CRM.
+    if (service) {
+      await db
+        .update(schema.appointments)
+        .set({ status: "rescheduled" })
+        .where(
+          and(
+            eq(schema.appointments.conversationId, ctx.conversationId),
+            eq(schema.appointments.customerId, customer.id),
+            eq(schema.appointments.serviceId, service.id),
+            eq(schema.appointments.status, "cancelled"),
+          ),
+        );
+    }
     await emit("appointment.changed", { businessId: bundle.business.id, conversationId: ctx.conversationId }, { status: "confirmed", appointmentId: booked.appointment.id });
     const cards: Card[] = [card];
     const email = input.email ?? customer.email;
