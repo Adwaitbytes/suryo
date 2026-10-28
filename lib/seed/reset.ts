@@ -188,12 +188,12 @@ export async function resetClinicState(businessId?: string): Promise<{ ms: numbe
   const appointmentRows: Array<typeof schema.appointments.$inferInsert> = [];
   for (const slot of bookedFuture) {
     const service = serviceFor(slot.staffId);
-    appointmentRows.push({ businessId: id, customerId: pick(customers).id, slotId: slot.id, serviceId: service.id, staffId: slot.staffId, startsAt: slot.startsAt, priceInr: service.priceInr, status: "confirmed" });
+    appointmentRows.push({ businessId: id, customerId: pick(customers).id, slotId: slot.id, serviceId: service.id, staffId: slot.staffId, startsAt: slot.startsAt, priceInr: service.priceInr, status: "confirmed", createdAt: new Date(now - Math.floor(rand() * 9 * 86_400_000) - 3600_000) });
   }
   const pastSample = insertedPast.filter(() => rand() < 0.25);
   for (const slot of pastSample) {
     const service = serviceFor(slot.staffId);
-    appointmentRows.push({ businessId: id, customerId: pick(customers).id, slotId: slot.id, serviceId: service.id, staffId: slot.staffId, startsAt: slot.startsAt, priceInr: service.priceInr, status: "completed" });
+    appointmentRows.push({ businessId: id, customerId: pick(customers).id, slotId: slot.id, serviceId: service.id, staffId: slot.staffId, startsAt: slot.startsAt, priceInr: service.priceInr, status: "completed", createdAt: new Date(slot.startsAt.getTime() - Math.floor(1 + rand() * 4) * 86_400_000) });
   }
   const unbookedPast = insertedPast.filter((s) => !pastSample.includes(s)).map((s) => s.id);
   if (unbookedPast.length) await db.update(schema.slots).set({ status: "blocked" }).where(inArray(schema.slots.id, unbookedPast));

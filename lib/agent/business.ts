@@ -1,9 +1,26 @@
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 
-export type BusinessBundle = Awaited<ReturnType<typeof loadBusiness>>;
+export type BusinessBundle = Awaited<ReturnType<typeof fetchBusiness>>;
 
-export async function loadBusiness(slugOrId: string) {
+const cache = new Map<string, { at: number; value: Promise<Awaited<ReturnType<typeof fetchBusiness>>> }>();
+const TTL_MS = 30_000;
+
+/** Business config changes rarely; a short per process cache saves four round trips per turn. */
+export function loadBusiness(slugOrId: string) {
+  const hit = cache.get(slugOrId);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+  const value = fetchBusiness(slugOrId);
+  cache.set(slugOrId, { at: Date.now(), value });
+  value.then((v) => { if (!v) cache.delete(slugOrId); }, () => cache.delete(slugOrId));
+  return value;
+}
+
+export function invalidateBusiness(): void {
+  cache.clear();
+}
+
+async function fetchBusiness(slugOrId: string) {
   const isUuid = /^[0-9a-f-]{36}$/i.test(slugOrId);
   const business = await db.query.businesses.findFirst({
     where: isUuid ? eq(schema.businesses.id, slugOrId) : eq(schema.businesses.slug, slugOrId),

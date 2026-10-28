@@ -86,7 +86,7 @@ export const clinicDoctors: DoctorSeed[] = [
   {
     name: "Dr. Rohan Joshi",
     title: "Orthodontist",
-    specialties: ["orthodontist", "dentist"],
+    specialties: ["orthodontist"],
     languages: ["English", "Hindi", "Marathi"],
     location: "palasia",
     schedule: weekdays([2, 4, 6], [["11:00", "14:00"], ["17:00", "20:00"]]),

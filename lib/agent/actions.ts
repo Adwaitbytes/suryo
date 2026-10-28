@@ -12,6 +12,10 @@ export type ActionContext = {
   bundle: NonNullable<BusinessBundle>;
   conversationId: string;
   channel: "voice" | "chat";
+  /** Background writes to await before the request ends. */
+  pending?: Promise<unknown>[];
+  /** Cards produced by slow side effects (email), streamed once they settle. */
+  deferredCards?: Promise<Card>[];
 };
 
 export type ActionResult = {
@@ -171,20 +175,25 @@ export async function executeAction(
     }
   }
   const durationMs = Date.now() - started;
-  await db.insert(schema.toolCalls).values({
-    conversationId: ctx.conversationId,
-    name,
-    input: maskPii(rawInput),
-    output: result.data,
-    ok: result.ok,
-    durationMs,
-  });
-  await emit("tool.called", { businessId: ctx.bundle.business.id, conversationId: ctx.conversationId }, {
-    name,
-    ok: result.ok,
-    durationMs,
-    label: ACTION_LABELS[name],
-  });
+  // Audit writes stay off the customer's critical path; callers flush ctx.pending before finishing.
+  const audit = Promise.all([
+    db.insert(schema.toolCalls).values({
+      conversationId: ctx.conversationId,
+      name,
+      input: maskPii(rawInput),
+      output: result.data,
+      ok: result.ok,
+      durationMs,
+    }),
+    emit("tool.called", { businessId: ctx.bundle.business.id, conversationId: ctx.conversationId }, {
+      name,
+      ok: result.ok,
+      durationMs,
+      label: ACTION_LABELS[name],
+    }),
+  ]);
+  if (ctx.pending) ctx.pending.push(audit);
+  else await audit;
   return result;
 }
 
@@ -393,12 +402,7 @@ const handlers: Handlers = {
     await emit("appointment.changed", { businessId: bundle.business.id, conversationId: ctx.conversationId }, { status: "confirmed", appointmentId: booked.appointment.id });
     const cards: Card[] = [card];
     const email = input.email ?? customer.email;
-    let emailStatus: string = "no_email_on_file";
-    if (email) {
-      const sent = await sendAppointmentEmail(ctx, booked.appointment.id, email, "REQUEST");
-      cards.push(sent.card);
-      emailStatus = sent.card.kind === "email" ? sent.card.status : "unknown";
-    }
+    const emailStatus = email ? await dispatchEmail(ctx, cards, booked.appointment.id, email, "REQUEST") : "no_email_on_file";
     await createFollowUp(ctx, {
       customerId: customer.id,
       kind: "reminder",
@@ -473,7 +477,7 @@ const handlers: Handlers = {
       },
     ];
     const customer = await db.query.customers.findFirst({ where: eq(schema.customers.id, result.old.customerId) });
-    if (customer?.email) cards.push((await sendAppointmentEmail(ctx, result.next.id, customer.email, "REQUEST")).card);
+    if (customer?.email) await dispatchEmail(ctx, cards, result.next.id, customer.email, "REQUEST");
     return {
       ok: true,
       data: { appointmentId: result.next.id, when: formatSlot(result.slot.startsAt), staff: staffName, location: location?.name ?? null },
@@ -505,7 +509,7 @@ const handlers: Handlers = {
       { kind: "booking", appointmentId, service: service?.name ?? "Appointment", staff: staffName, startsAt: appt.startsAt.toISOString(), location: null, priceInr: appt.priceInr, status: "cancelled" },
     ];
     const customer = await db.query.customers.findFirst({ where: eq(schema.customers.id, appt.customerId) });
-    if (customer?.email) cards.push((await sendAppointmentEmail(ctx, appointmentId, customer.email, "CANCEL")).card);
+    if (customer?.email) await dispatchEmail(ctx, cards, appointmentId, customer.email, "CANCEL");
     const hoursAhead = (appt.startsAt.getTime() - Date.now()) / 3600_000;
     return { ok: true, data: { cancelled: true, when: formatSlot(appt.startsAt), lateCancellation: hoursAhead < 4 }, cards };
   },
@@ -642,28 +646,33 @@ async function findCustomer(businessId: string, phone?: string, email?: string) 
 export async function upsertCustomer(
   businessId: string,
   input: { name: string; phone?: string; email?: string; language?: string },
-) {
+): Promise<typeof schema.customers.$inferSelect> {
   const phone = normalizePhone(input.phone);
   const email = input.email?.trim().toLowerCase() || null;
-  const existing = await findCustomer(businessId, phone ?? undefined, email ?? undefined);
-  if (existing) {
-    const [updated] = await db
-      .update(schema.customers)
-      .set({
-        name: input.name || existing.name,
-        phone: phone ?? existing.phone,
-        email: email ?? existing.email,
-        language: input.language ?? existing.language,
-      })
-      .where(eq(schema.customers.id, existing.id))
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await findCustomer(businessId, phone ?? undefined, email ?? undefined);
+    if (existing) {
+      const [updated] = await db
+        .update(schema.customers)
+        .set({
+          name: input.name || existing.name,
+          phone: existing.phone ?? phone,
+          email: existing.email ?? email,
+          language: input.language ?? existing.language,
+        })
+        .where(eq(schema.customers.id, existing.id))
+        .returning();
+      return updated;
+    }
+    // Parallel tool calls can race to create the same customer; the unique index decides and we re-read.
+    const [created] = await db
+      .insert(schema.customers)
+      .values({ businessId, name: input.name, phone, email, language: input.language ?? null })
+      .onConflictDoNothing()
       .returning();
-    return updated;
+    if (created) return created;
   }
-  const [created] = await db
-    .insert(schema.customers)
-    .values({ businessId, name: input.name, phone, email, language: input.language ?? null })
-    .returning();
-  return created;
+  throw new ActionError("customer_conflict");
 }
 
 async function linkCustomer(ctx: ActionContext, customerId: string) {
@@ -704,6 +713,27 @@ export async function createFollowUp(
     ...input,
   });
   await emit("followup.changed", { businessId: ctx.bundle.business.id, conversationId: ctx.conversationId }, { kind: input.kind });
+}
+
+/**
+ * Sends the confirmation without blocking the reply when the caller can stream
+ * a late card; otherwise waits and attaches the card inline.
+ */
+async function dispatchEmail(
+  ctx: ActionContext,
+  cards: Card[],
+  appointmentId: string,
+  to: string,
+  method: "REQUEST" | "CANCEL",
+): Promise<string> {
+  const sending = sendAppointmentEmail(ctx, appointmentId, to, method).then((r) => r.card);
+  if (ctx.deferredCards) {
+    ctx.deferredCards.push(sending);
+    return "sending";
+  }
+  const card = await sending;
+  cards.push(card);
+  return card.kind === "email" ? card.status : "unknown";
 }
 
 async function sendAppointmentEmail(

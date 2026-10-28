@@ -101,6 +101,8 @@ export type MessageMeta = {
   /** Compact record of tool outcomes (offered slot ids, appointment ids) replayed into later turns. */
   memory?: string;
   tools?: string[];
+  /** Exact model messages (tool calls and results) for faithful replay on later turns. */
+  trace?: unknown[];
 };
 
 export type ConversationSummary = {

@@ -10,6 +10,7 @@ import { analyzeTurn, heuristicAnalysis } from "./analysis";
 import type { BusinessBundle } from "./business";
 import { escalateConversation } from "./escalation";
 import { buildSystemPrompt, slotLine } from "./prompt";
+import { MIN_CONFIDENCE, searchKnowledge } from "@/lib/kb/search";
 
 type Bundle = NonNullable<BusinessBundle>;
 
@@ -45,9 +46,11 @@ async function loadHistory(conversationId: string): Promise<{ messages: ModelMes
     if (m.role === "customer") {
       messages.push({ role: "user", content: m.content });
       customerTexts.push(m.content);
+    } else if (m.role === "agent" && m.meta.trace?.length) {
+      messages.push(...(m.meta.trace as ModelMessage[]));
     } else if (m.role === "agent" || m.role === "human") {
       const prefix = m.role === "human" ? "[A human coordinator sent this] " : "";
-      const memory = m.meta.memory ? `\n\n(Context from your tools last turn: ${m.meta.memory})` : "";
+      const memory = m.meta.memory ? `\n\n(Earlier tool results: ${m.meta.memory})` : "";
       messages.push({ role: "assistant", content: `${prefix}${m.content}${memory}` });
     }
   }
@@ -60,6 +63,33 @@ async function loadHistory(conversationId: string): Promise<{ messages: ModelMes
     } else merged.push({ ...msg } as ModelMessage);
   }
   return { messages: merged, customerTexts };
+}
+
+type Steps = Awaited<ReturnType<typeof streamText>["steps"]>;
+
+/** Rebuilds a provider neutral transcript of every step: text, tool calls and their JSON results. */
+function traceFromSteps(steps: Steps): ModelMessage[] {
+  const out: ModelMessage[] = [];
+  for (const step of steps) {
+    const content: Array<
+      { type: "text"; text: string } | { type: "tool-call"; toolCallId: string; toolName: string; input: unknown }
+    > = [];
+    if (step.text.trim()) content.push({ type: "text", text: step.text });
+    for (const call of step.toolCalls) content.push({ type: "tool-call", toolCallId: call.toolCallId, toolName: call.toolName, input: call.input });
+    if (content.length) out.push({ role: "assistant", content });
+    if (step.toolResults.length) {
+      out.push({
+        role: "tool",
+        content: step.toolResults.map((r) => ({
+          type: "tool-result" as const,
+          toolCallId: r.toolCallId,
+          toolName: r.toolName,
+          output: { type: "json" as const, value: JSON.parse(JSON.stringify(r.output ?? null)) },
+        })),
+      });
+    }
+  }
+  return out;
 }
 
 function memoryFor(name: ActionName, data: Record<string, unknown>, cards: Card[] | undefined): string | null {
@@ -102,8 +132,12 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
     .insert(schema.messages)
     .values({ conversationId, role: "customer", content: text, meta: { language: quick.language } })
     .returning();
-  await emit("message.created", { businessId, conversationId }, { role: "customer", messageId: customerMessage.id });
+  const pending: Promise<unknown>[] = [
+    emit("message.created", { businessId, conversationId }, { role: "customer", messageId: customerMessage.id }),
+  ];
 
+  // Retrieval runs in parallel with history loading so most questions need a single model call.
+  const prefetchPromise = conversation.status === "human" ? null : searchKnowledge(businessId, text).catch(() => null);
   const { messages: history, customerTexts } = await loadHistory(conversationId);
   const analysisPromise = analyzeTurn(text, customerTexts.slice(0, -1));
 
@@ -117,7 +151,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
     return;
   }
 
-  const ctx: ActionContext = { bundle, conversationId, channel };
+  const deferredCards: Promise<Card>[] = [];
+  const ctx: ActionContext = { bundle, conversationId, channel, pending, deferredCards };
   const queue: StreamEvent[] = [];
   const cards: Card[] = [];
   const sources: SourceRef[] = [];
@@ -155,15 +190,40 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
     ? await db.query.customers.findFirst({ where: eq(schema.customers.id, conversation.customerId) })
     : null;
 
+  const prefetched = await prefetchPromise;
+  // A confident prefetch is recorded as a real search_knowledge call, so it is replayed on later turns too.
+  const prelude: ModelMessage[] = [];
+  if (prefetched && prefetched.confidence >= MIN_CONFIDENCE) {
+    const top = prefetched.hits.filter((h) => h.score >= MIN_CONFIDENCE - 0.05).slice(0, 3);
+    const toolCallId = `prefetch_${customerMessage.id.slice(0, 8)}`;
+    prelude.push(
+      { role: "assistant", content: [{ type: "tool-call", toolCallId, toolName: "search_knowledge", input: { query: text } }] },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId,
+            toolName: "search_knowledge",
+            output: { type: "json", value: { covered: true, guidance: "Answer only from these passages.", passages: top.map((h) => ({ title: h.title, text: h.content })) } },
+          },
+        ],
+      },
+    );
+    const refs = top.map(({ content: _c, ...ref }) => ref);
+    sources.push(...refs);
+    yield { type: "sources", sources: refs };
+  }
+
   const result = streamText({
     model: fastModel(),
     system: buildSystemPrompt(bundle, channel, returning ? { name: returning.name, lastContact: null } : undefined),
-    messages: history,
+    messages: [...history, ...prelude],
     tools,
     stopWhen: stepCountIs(6),
-    temperature: 0.3,
-    maxOutputTokens: 600,
-    providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+    maxOutputTokens: 1200,
+    // Live turns trade deliberation for latency; the stage machine and tools keep it on rails.
+    providerOptions: { anthropic: { cacheControl: { type: "ephemeral" }, thinking: { type: "disabled" } } },
   });
 
   let reply = "";
@@ -192,8 +252,16 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
   }
   while (queue.length) yield queue.shift() as StreamEvent;
 
+  let trace: ModelMessage[] | undefined;
+  try {
+    trace = failed ? undefined : [...prelude, ...traceFromSteps(await result.steps)];
+  } catch {
+    trace = undefined;
+  }
+
   reply = reply.trim();
   if (!reply) {
+    trace = undefined;
     reply = failed
       ? "Sorry, I hit a problem on my side. I have flagged this for a coordinator who will follow up with you shortly."
       : "Done. Is there anything else I can help with?";
@@ -221,10 +289,11 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
         language: analysis.language,
         memory: memories.join(" | ") || undefined,
         tools: toolsUsed,
+        trace,
       },
     })
     .returning();
-  await emit("message.created", { businessId, conversationId }, { role: "agent", messageId: agentMessage.id });
+  pending.push(emit("message.created", { businessId, conversationId }, { role: "agent", messageId: agentMessage.id }));
 
   const escalated = toolsUsed.includes("escalate_to_human");
   const guard = await persistAnalysis(conversationId, businessId, customerMessage.id, analysis, conversation.sentiment, {
@@ -234,6 +303,16 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
   });
   if (guard) yield { type: "handoff", reason: guard };
 
+  for (const settled of await Promise.allSettled(deferredCards)) {
+    if (settled.status === "fulfilled") {
+      cards.push(settled.value);
+      yield { type: "card", card: settled.value };
+    }
+  }
+  if (deferredCards.length) {
+    await db.update(schema.messages).set({ meta: { ...agentMessage.meta, cards } }).where(eq(schema.messages.id, agentMessage.id));
+  }
+  await Promise.all(pending);
   const status = (await getConversation(bundle, conversationId))?.status ?? "active";
   yield { type: "conversation", conversationId, status };
   yield { type: "done", messageId: agentMessage.id, latencyMs, firstTokenMs };
