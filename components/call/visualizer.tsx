@@ -53,6 +53,7 @@ export function CallVisualizer({ levels, phase, activity, reducedMotion, classNa
     let agent = 0;
     let mic = 0;
     let presence = 0;
+    let off = 0;
     let sweep = 0;
     let echo = 0;
     let echoRadius = 0;
@@ -66,6 +67,7 @@ export function CallVisualizer({ levels, phase, activity, reducedMotion, classNa
       const sample = levels();
       const live = p === "live";
       const dim = p === "human" || p === "ended" || p === "error";
+      const over = p === "ended" || p === "error";
 
       // Fast attack, slow release reads as alive without jitter.
       const targetAgent = live ? (sample?.agent ?? 0) : 0;
@@ -73,6 +75,8 @@ export function CallVisualizer({ levels, phase, activity, reducedMotion, classNa
       agent += (targetAgent - agent) * (targetAgent > agent ? 0.45 : 0.08);
       mic += (targetMic - mic) * (targetMic > mic ? 0.5 : 0.1);
       presence += ((dim ? 0.35 : 1) - presence) * 0.05;
+      off += ((over ? 1 : 0) - off) * 0.06;
+      const lit = presence * (1 - off);
 
       const t = now / 1000;
       const motion = calm ? 0.25 : 1;
@@ -86,8 +90,8 @@ export function CallVisualizer({ levels, phase, activity, reducedMotion, classNa
 
       // Warm atmosphere behind the sun, strongest while she speaks.
       const glow = ctx.createRadialGradient(cx, cy, core * 0.4, cx, cy, size * 0.5);
-      glow.addColorStop(0, rgba(SAFFRON, (0.16 + agent * 0.22) * presence));
-      glow.addColorStop(0.55, rgba(SAFFRON, (0.04 + agent * 0.05) * presence));
+      glow.addColorStop(0, rgba(SAFFRON, (0.16 + agent * 0.22) * lit));
+      glow.addColorStop(0.55, rgba(SAFFRON, (0.04 + agent * 0.05) * lit));
       glow.addColorStop(1, rgba(SAFFRON, 0));
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, width, height);
@@ -105,7 +109,7 @@ export function CallVisualizer({ levels, phase, activity, reducedMotion, classNa
         rays[i] += (target - rays[i]) * (target > rays[i] ? 0.4 : 0.09);
         const len = core * (0.14 + rays[i] * 1.05 * motion);
         const inner = core * 1.12;
-        const alpha = (0.22 + Math.min(0.7, rays[i] * 1.3)) * presence;
+        const alpha = (0.22 + Math.min(0.7, rays[i] * 1.3)) * lit;
         ctx.strokeStyle = rgba(SAFFRON, alpha);
         ctx.lineWidth = 1.25;
         ctx.lineCap = "round";
@@ -126,6 +130,19 @@ export function CallVisualizer({ levels, phase, activity, reducedMotion, classNa
       disc.addColorStop(1, rgba({ r: 214, g: 82, b: 20 }, presence));
       ctx.fillStyle = disc;
       ctx.fill();
+
+      // Once the call is over the sun sets to a graphite disc with a faint rim, not a muddy brown.
+      if (off > 0.001) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, core, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(28, 28, 33, ${off.toFixed(3)})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx, cy, core - 0.5, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba(SAFFRON, 0.35 * off);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
 
       // Caller orbit: a fine neutral ring displaced by smooth travelling waves scaled by mic level.
       const ripple = mic * size * 0.05 * motion;

@@ -55,7 +55,7 @@ function Metric({ label, value, sub, emphasis }: { label: string; value: string;
   return (
     <div className="bg-surface px-5 py-5">
       <div className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-subtle">{label}</div>
-      <div className={cn("tabular mt-2 font-display leading-none text-fg", emphasis ? "text-[52px]" : "text-[44px]")}>{value}</div>
+      <div className={cn("tabular mt-2.5 font-medium leading-none text-fg", emphasis ? "text-[40px] tracking-[-0.035em]" : "text-[34px] tracking-[-0.03em]")}>{value}</div>
       <div className="mt-2 text-xs text-fg-subtle">{sub}</div>
     </div>
   );
@@ -102,8 +102,8 @@ function Body({ a, days }: { a: Analytics; days: number }) {
                       <span aria-hidden className={cn("size-2 rounded-sm", r.swatch)} />
                       {r.label}
                     </dt>
-                    <dd className="tabular mt-1 font-display text-3xl leading-none text-fg">
-                      {r.value} <span className="font-sans text-sm text-fg-subtle">{Math.round((r.value / total) * 100)}%</span>
+                    <dd className="tabular mt-1.5 text-[28px] font-medium leading-none tracking-[-0.03em] text-fg">
+                      {r.value} <span className="text-sm font-normal tracking-normal text-fg-subtle">{Math.round((r.value / total) * 100)}%</span>
                     </dd>
                   </div>
                 ))}

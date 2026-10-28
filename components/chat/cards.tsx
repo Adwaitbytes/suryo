@@ -40,7 +40,7 @@ function Shell({ tone = "neutral", children, className }: { tone?: "neutral" | "
   );
 }
 
-function Header({ icon, eyebrow, title, badge }: { icon: ReactNode; eyebrow: string; title: string; badge?: ReactNode }) {
+function Header({ icon, eyebrow, title, meta, badge }: { icon: ReactNode; eyebrow: string; title: string; meta?: string; badge?: ReactNode }) {
   return (
     <div className="flex items-start gap-3 px-3.5 pt-3.5">
       <div aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-surface-2 text-fg-muted">
@@ -49,6 +49,7 @@ function Header({ icon, eyebrow, title, badge }: { icon: ReactNode; eyebrow: str
       <div className="min-w-0 flex-1">
         <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-fg-subtle">{eyebrow}</div>
         <div className="mt-0.5 text-[14px] font-medium leading-snug text-fg">{title}</div>
+        {meta ? <div className="mt-0.5 truncate text-[12px] text-fg-subtle">{meta}</div> : null}
       </div>
       {badge}
     </div>
@@ -67,59 +68,53 @@ function Row({ icon, label, children }: { icon: ReactNode; label: string; childr
   );
 }
 
-export function SlotPicker({
-  card,
-  onPick,
-  disabled,
-}: {
-  card: SlotsCard;
-  onPick: (slot: SlotsCard["slots"][number]) => void;
-  disabled: boolean;
-}) {
-  const days = new Map<string, SlotsCard["slots"]>();
-  for (const slot of card.slots) {
-    const key = dayKey(slot.startsAt);
-    days.set(key, [...(days.get(key) ?? []), slot]);
+type Slot = SlotsCard["slots"][number];
+
+const providerLabel = (slot: Slot) => (slot.location ? `${slot.staff} · ${slot.location}` : slot.staff);
+
+function groupBy<T>(items: T[], key: (item: T) => string): Array<[string, T[]]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    groups.set(k, [...(groups.get(k) ?? []), item]);
   }
+  return [...groups.entries()];
+}
+
+export function SlotPicker({ card, onPick, disabled }: { card: SlotsCard; onPick: (slot: Slot) => void; disabled: boolean }) {
   const first = card.slots[0];
-  // When one doctor at one branch covers every slot, say it once and keep the grid to times.
-  const uniform = card.slots.every((s) => s.staff === first?.staff && s.location === first?.location);
+  // When one doctor at one branch covers every slot, say it once in the header and keep the grid to times.
+  const shared = first && card.slots.every((s) => providerLabel(s) === providerLabel(first)) ? providerLabel(first) : undefined;
+  const days = groupBy(card.slots, (slot) => dayKey(slot.startsAt));
   return (
     <Shell>
-      <Header icon={<CalendarClock className="size-4" />} eyebrow="Open slots" title={card.service} />
-      {uniform && first ? (
-        <p className="truncate px-3.5 pl-[3.625rem] text-2xs text-fg-subtle">
-          {first.staff}
-          {first.location ? ` · ${first.location}` : ""}
-        </p>
-      ) : null}
-      <div className="space-y-3 px-3.5 pb-3.5 pt-3">
-        {[...days.entries()].map(([key, slots]) => (
+      <Header icon={<CalendarClock className="size-4" />} eyebrow="Open slots" title={card.service} meta={shared} />
+      <div className="space-y-3.5 px-3.5 pb-3.5 pt-3">
+        {days.map(([key, daySlots]) => (
           <fieldset key={key} className="min-w-0">
-            <legend className="mb-1.5 text-2xs font-medium text-fg-subtle">{formatDay(slots[0].startsAt)}</legend>
-            <ul className={cn("grid gap-1.5", uniform ? "grid-cols-3" : "grid-cols-1 min-[360px]:grid-cols-2")}>
-              {slots.map((slot) => (
-                <li key={slot.slotId}>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onPick(slot)}
-                    aria-label={slotRequest(slot)}
-                    className="group flex w-full flex-col items-start justify-center rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-left transition-[border-color,background-color,transform] duration-150 hover:border-accent/60 hover:bg-accent-soft active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border disabled:hover:bg-surface-2"
-                  >
-                    <span className="tabular text-[13px] font-medium text-fg group-hover:text-accent group-disabled:text-fg">
-                      {formatClock(slot.startsAt)}
-                    </span>
-                    {uniform ? null : (
-                      <span className="mt-0.5 w-full truncate text-2xs text-fg-subtle">
-                        {slot.staff}
-                        {slot.location ? ` · ${slot.location}` : ""}
-                      </span>
-                    )}
-                  </button>
-                </li>
+            <legend className="mb-2 text-[12px] font-medium text-fg-subtle">{formatDay(daySlots[0].startsAt)}</legend>
+            <div className="space-y-2.5">
+              {groupBy(daySlots, providerLabel).map(([provider, slots]) => (
+                <div key={provider}>
+                  {shared ? null : <p className="mb-1.5 truncate text-2xs text-fg-subtle">{provider}</p>}
+                  <ul className="grid grid-cols-3 gap-2">
+                    {slots.map((slot) => (
+                      <li key={slot.slotId}>
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => onPick(slot)}
+                          aria-label={slotRequest(slot)}
+                          className="tabular h-10 w-full rounded-lg border border-border bg-surface-2 text-[14px] font-medium text-fg transition-[border-color,background-color,color,transform] duration-150 hover:border-accent/60 hover:bg-accent-soft hover:text-accent active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border disabled:hover:bg-surface-2 disabled:hover:text-fg"
+                        >
+                          {formatClock(slot.startsAt)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </fieldset>
         ))}
         <p className="font-mono text-[10px] text-fg-faint">Times in IST</p>

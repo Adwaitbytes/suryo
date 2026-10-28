@@ -1,12 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Radio } from "lucide-react";
+import { Headphones, MessageSquareText, Radio } from "lucide-react";
 import { EmptyState } from "@/components/ui/primitives";
 import type { LiveConversation } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
-import { ChannelIcon, LanguageChip, SentimentMeter, StatusChip, UrgencyChip } from "../bits";
-import { STAGE_LABELS, relativeTime, titleCase } from "../format";
+import { UrgencyChip } from "../bits";
+import { LANGUAGE_LABELS, STAGE_LABELS, STATUS_META, isSevere, relativeTime, titleCase } from "../format";
 import type { ConversationStage } from "@/lib/contracts";
 
 export type ListFilter = "open" | "all";
@@ -21,6 +21,7 @@ export function ConversationList({
   onFilter,
   now,
   loading,
+  agentName,
 }: {
   conversations: LiveConversation[];
   selectedId: string | null;
@@ -29,6 +30,7 @@ export function ConversationList({
   onFilter: (f: ListFilter) => void;
   now: number;
   loading: boolean;
+  agentName: string;
 }) {
   const openCount = conversations.filter(isOpen).length;
   const visible = filter === "open" ? conversations.filter(isOpen) : conversations;
@@ -74,7 +76,7 @@ export function ConversationList({
                   exit={{ opacity: 0, transition: { duration: 0.12 } }}
                   transition={{ type: "spring", stiffness: 520, damping: 40 }}
                 >
-                  <Row conversation={c} selected={c.id === selectedId} onSelect={onSelect} now={now} />
+                  <Row conversation={c} selected={c.id === selectedId} onSelect={onSelect} now={now} agentName={agentName} />
                 </motion.li>
               ))}
             </AnimatePresence>
@@ -85,9 +87,34 @@ export function ConversationList({
   );
 }
 
-function Row({ conversation: c, selected, onSelect, now }: { conversation: LiveConversation; selected: boolean; onSelect: (id: string) => void; now: number }) {
+const DOT_CLASS = { success: "bg-success", info: "bg-info", danger: "bg-danger", warning: "bg-warning", neutral: "bg-fg-faint" } as const;
+
+function statusDot(c: LiveConversation): keyof typeof DOT_CLASS {
+  if (c.status === "escalated") return c.escalation && !isSevere(c.escalation.urgency) ? "warning" : "danger";
+  if (c.status === "resolved" || c.status === "abandoned") return "neutral";
+  if (c.sentiment < -0.3) return "warning";
+  return c.status === "human" ? "info" : "success";
+}
+
+function Row({
+  conversation: c,
+  selected,
+  onSelect,
+  now,
+  agentName,
+}: {
+  conversation: LiveConversation;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  now: number;
+  agentName: string;
+}) {
+  const knownIntent = c.intent && c.intent !== "other" ? c.intent : null;
   const stage = STAGE_LABELS[c.stage as ConversationStage] ?? titleCase(c.stage);
-  const preview = c.lastMessage ? `${c.lastMessage.role === "customer" ? "" : c.lastMessage.role === "human" ? "Staff: " : "Suryo: "}${c.lastMessage.content}` : "Waiting for the first message";
+  const author = c.lastMessage?.role === "human" ? "Staff: " : c.lastMessage?.role === "agent" ? `${agentName}: ` : "";
+  const preview = c.lastMessage ? `${author}${c.lastMessage.content}` : "Waiting for the first message";
+  const dot = statusDot(c);
+  const ChannelGlyph = c.channel === "voice" ? Headphones : MessageSquareText;
   return (
     <button
       type="button"
@@ -96,32 +123,29 @@ function Row({ conversation: c, selected, onSelect, now }: { conversation: LiveC
       data-conversation={c.id}
       onClick={() => onSelect(c.id)}
       className={cn(
-        "relative flex w-full gap-3 px-4 py-3.5 text-left transition-colors focus-visible:outline-offset-[-2px]",
+        "relative block w-full px-4 py-2.5 text-left transition-colors focus-visible:outline-offset-[-2px]",
         selected ? "bg-surface-2" : "hover:bg-surface",
       )}
     >
       {selected ? <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-accent" /> : null}
-      <ChannelIcon channel={c.channel} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className={cn("truncate text-[13.5px] font-medium", c.customerName ? "text-fg" : "text-fg-muted")}>
-            {c.customerName ?? (c.channel === "voice" ? "Unknown caller" : "Website visitor")}
-          </span>
-          {c.escalation && c.escalation.status !== "resolved" ? <UrgencyChip urgency={c.escalation.urgency} solid /> : null}
-          <span className="tabular ml-auto shrink-0 text-2xs text-fg-faint">{relativeTime(c.lastActivityAt, now)}</span>
+      <span className="flex h-5 items-center gap-2">
+        <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT_CLASS[dot], STATUS_META[c.status].live && "live-dot")} />
+        <span className="sr-only">{STATUS_META[c.status].label}.</span>
+        <span className={cn("min-w-0 truncate text-[13.5px] font-medium", c.customerName ? "text-fg" : "text-fg-muted")}>
+          {c.customerName ?? (c.channel === "voice" ? "Unknown caller" : "Website visitor")}
         </span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-subtle">
-          <span className="truncate">{c.intent ? titleCase(c.intent) : "Intent pending"}</span>
-          <span aria-hidden className="text-fg-faint">·</span>
-          <span className="shrink-0">{stage}</span>
-        </span>
-        <span className="mt-1.5 line-clamp-1 text-[12.5px] leading-snug text-fg-muted">{c.headline ?? preview}</span>
-        <span className="mt-2 flex items-center gap-1.5">
-          <StatusChip status={c.status} />
-          <LanguageChip language={c.language} />
-          <SentimentMeter value={c.sentiment} className="ml-auto" />
+        {c.escalation && c.escalation.status !== "resolved" ? <UrgencyChip urgency={c.escalation.urgency} solid /> : null}
+        <span className="tabular ml-auto flex shrink-0 items-center gap-1.5 font-mono text-[10.5px] text-fg-faint">
+          <ChannelGlyph aria-label={c.channel === "voice" ? "Voice call" : "Chat"} className="size-3" strokeWidth={1.75} />
+          {LANGUAGE_LABELS[c.language] ?? c.language.toUpperCase()} · {relativeTime(c.lastActivityAt, now)}
         </span>
       </span>
+      <span className="mt-0.5 block truncate pl-3.5 text-[12.5px] leading-snug text-fg-muted">{c.headline ?? preview}</span>
+      {knownIntent ? (
+        <span className="mt-0.5 block truncate pl-3.5 text-2xs text-fg-subtle">
+          {titleCase(knownIntent)} · {stage}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -130,13 +154,9 @@ function ListSkeleton() {
   return (
     <div className="divide-y divide-border" aria-busy="true" aria-label="Loading conversations">
       {Array.from({ length: 7 }, (_, i) => (
-        <div key={i} className="flex gap-3 px-4 py-3.5" style={{ opacity: 1 - i * 0.12 }}>
-          <div className="skeleton size-8 rounded-lg" />
-          <div className="flex-1 space-y-2">
-            <div className="skeleton h-3.5 w-32" />
-            <div className="skeleton h-3 w-24" />
-            <div className="skeleton h-3 w-full" />
-          </div>
+        <div key={i} className="space-y-2 px-4 py-3" style={{ opacity: 1 - i * 0.12 }}>
+          <div className="skeleton h-3.5 w-32" />
+          <div className="skeleton h-3 w-full" />
         </div>
       ))}
     </div>

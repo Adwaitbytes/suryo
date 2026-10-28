@@ -5,7 +5,7 @@ import type { Card, Channel, SourceRef, StreamEvent, TurnAnalysis } from "@/lib/
 import { db, schema } from "@/lib/db";
 import { emit } from "@/lib/events";
 import { runAfter } from "@/lib/background";
-import { ACTION_DESCRIPTIONS, ACTION_LABELS, ACTION_NAMES, actionSchemas, executeAction, type ActionContext, type ActionName } from "./actions";
+import { ACTION_DESCRIPTIONS, ACTION_LABELS, actionSchemas, executeAction, toolsFor, type ActionContext, type ActionName } from "./actions";
 import { analyzeTurn, heuristicAnalysis } from "./analysis";
 import type { BusinessBundle } from "./business";
 import { escalateConversation } from "./escalation";
@@ -15,7 +15,7 @@ import { MIN_CONFIDENCE, searchKnowledge, toSourceRef } from "@/lib/kb/search";
 type Bundle = NonNullable<BusinessBundle>;
 
 /** Pre tool narration is short; anything longer is treated as the real reply and streamed. */
-const HOLD_CHARS = 160;
+const HOLD_CHARS = 240;
 
 const LANGUAGE_HINT = {
   en: "The latest customer message is in English. Reply in English.",
@@ -87,15 +87,23 @@ function traceFromSteps(steps: Steps): ModelMessage[] {
     if (step.text.trim() && step.toolCalls.length === 0) content.push({ type: "text", text: step.text });
     for (const call of step.toolCalls) content.push({ type: "tool-call", toolCallId: call.toolCallId, toolName: call.toolName, input: call.input });
     if (content.length) out.push({ role: "assistant", content });
-    if (step.toolResults.length) {
+    if (step.toolCalls.length) {
+      // Every call needs a result on replay, including calls that threw, or the next turn is rejected.
+      const errors = step.content.filter((p) => p.type === "tool-error");
       out.push({
         role: "tool",
-        content: step.toolResults.map((r) => ({
-          type: "tool-result" as const,
-          toolCallId: r.toolCallId,
-          toolName: r.toolName,
-          output: { type: "json" as const, value: JSON.parse(JSON.stringify(r.output ?? null)) },
-        })),
+        content: step.toolCalls.map((call) => {
+          const result = step.toolResults.find((r) => r.toolCallId === call.toolCallId);
+          const failure = errors.find((e) => e.toolCallId === call.toolCallId);
+          return {
+            type: "tool-result" as const,
+            toolCallId: call.toolCallId,
+            toolName: call.toolName,
+            output: result
+              ? { type: "json" as const, value: JSON.parse(JSON.stringify(result.output ?? null)) }
+              : { type: "error-text" as const, value: failure ? String(failure.error) : "Tool did not return a result" },
+          };
+        }),
       });
     }
   }
@@ -170,7 +178,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
   const toolsUsed: string[] = [];
 
   const tools: ToolSet = Object.fromEntries(
-    ACTION_NAMES.map((name) => [
+    toolsFor(bundle.business.kind).map((name) => [
       name,
       tool({
         description: ACTION_DESCRIPTIONS[name],

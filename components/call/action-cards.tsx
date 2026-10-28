@@ -15,7 +15,7 @@ const timeOnly = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, hour: "numeric
 export function ActionCards({ actions, reducedMotion }: { actions: CallAction[]; reducedMotion: boolean }) {
   const visible = actions.slice(-2);
   return (
-    <div className="flex flex-col gap-2" aria-live="polite" aria-relevant="additions text">
+    <div className="flex flex-col items-start gap-2" aria-live="polite" aria-relevant="additions text">
       <AnimatePresence initial={false} mode="popLayout">
         {visible.map((action) => (
           <motion.div
@@ -25,6 +25,7 @@ export function ActionCards({ actions, reducedMotion }: { actions: CallAction[];
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.98, transition: { duration: 0.18 } }}
             transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.8 }}
+            className={isCompact(action) ? "max-w-full" : "w-full"}
           >
             <ActionCard action={action} />
           </motion.div>
@@ -49,12 +50,8 @@ function ActionCard({ action }: { action: CallAction }) {
       </Shell>
     );
   }
-  if (action.cards.length === 0) {
-    return (
-      <Shell icon={<Check className="size-4" />} tone="muted">
-        <span className="text-fg-muted">{doneLabel(action.name, action.label)}</span>
-      </Shell>
-    );
+  if (isCompact(action)) {
+    return <DoneChip label={action.cards.length ? cardLabel(action.cards[0]) : doneLabel(action.name, action.label)} />;
   }
   return (
     <div className="flex flex-col gap-2">
@@ -108,8 +105,8 @@ function CardView({ card }: { card: Card }) {
       );
     case "ticket":
       return (
-        <Shell icon={<Ticket className="size-4" />} tone="accent" title="Ticket opened">
-          <p className="mt-0.5 line-clamp-2 text-[13px] text-fg-muted">{card.summary}</p>
+        <Shell icon={<Ticket className="size-4" />} tone="accent" title={`Ticket T-${card.ticketId.slice(0, 6).toUpperCase()}`}>
+          <p className="mt-0.5 text-[13px] text-fg-muted">The front desk will follow up on your {card.category.replace(/_/g, " ")} request.</p>
         </Shell>
       );
     case "escalation":
@@ -144,12 +141,43 @@ const toneClass = {
 function Shell({ icon, tone, title, children }: { icon: ReactNode; tone: keyof typeof toneClass; title?: string; children?: ReactNode }) {
   return (
     <div className={cn("flex gap-3 rounded-2xl border border-border bg-surface/90 px-3.5 py-3 shadow-md", title ? "items-start" : "items-center")}>
-      <span className={cn("mt-px grid size-7 shrink-0 place-items-center rounded-lg", toneClass[tone])}>{icon}</span>
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", title && "mt-0.5", toneClass[tone])}>{icon}</span>
       <div className="min-w-0 flex-1 text-sm leading-snug">
         {title ? <p className="font-medium text-fg">{title}</p> : null}
         {children}
       </div>
     </div>
+  );
+}
+
+/** Rich cards are kept for outcomes the caller acts on; everything else settles into a quiet chip. */
+const RICH_CARDS = new Set<Card["kind"]>(["booking", "slots", "ticket"]);
+
+function isCompact(action: CallAction): boolean {
+  return action.status === "done" && action.cards.every((card) => !RICH_CARDS.has(card.kind));
+}
+
+function cardLabel(card: Card): string {
+  switch (card.kind) {
+    case "email":
+      return card.status === "sent" ? "Email sent" : card.status === "failed" ? "Email could not send" : "Email skipped";
+    case "lead":
+      return "Interest noted";
+    case "followup":
+      return "Follow up scheduled";
+    case "escalation":
+      return "Connecting a human";
+    default:
+      return "Done";
+  }
+}
+
+function DoneChip({ label }: { label: string }) {
+  return (
+    <span className="inline-flex h-8 max-w-full items-center gap-2 rounded-full border border-border bg-surface px-3 text-[13px] text-fg-muted">
+      <Check aria-hidden className="size-3.5 shrink-0 text-success" />
+      <span className="truncate">{label}</span>
+    </span>
   );
 }
 

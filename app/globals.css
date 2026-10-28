@@ -103,10 +103,16 @@
   --text-2xs--line-height: 1rem;
 }
 
-/* Layered so Tailwind border color utilities can override the default. */
+/* Layered so Tailwind border color and outline utilities can override the defaults. */
 @layer base {
   * {
     border-color: var(--border);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 }
 
@@ -127,12 +133,6 @@ body {
 ::selection {
   background: var(--accent-soft);
   color: var(--fg);
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 2px;
-  border-radius: 6px;
 }
 
 .font-display {

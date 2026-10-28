@@ -274,7 +274,7 @@ function Impact({ live }: { live: LiveSnapshot }) {
           {metrics.map((m) => (
             <div key={m.label} className="border-t border-border-strong pt-8">
               <dt className="text-[24px] text-fg-subtle">{m.label}</dt>
-              <dd className="tabular mt-5 whitespace-nowrap font-display text-[88px] leading-none">{m.value}</dd>
+              <dd className="tabular mt-5 whitespace-nowrap text-[88px] font-semibold leading-none tracking-[-0.04em]">{m.value}</dd>
             </div>
           ))}
         </dl>
@@ -285,7 +285,7 @@ function Impact({ live }: { live: LiveSnapshot }) {
         <span className="font-mono text-[20px] uppercase tracking-[0.16em] text-fg-subtle">Latest eval run</span>
         {e ? (
           <>
-            <span className="tabular font-display text-[64px] leading-none text-success">
+            <span className="tabular text-[64px] font-semibold leading-none tracking-[-0.04em] text-success">
               {e.passed}/{e.total}
             </span>
             <span className="text-[26px] text-fg-muted">

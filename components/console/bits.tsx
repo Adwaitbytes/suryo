@@ -78,7 +78,7 @@ export function StatTile({ label, value, sub, tone, className }: { label: string
   return (
     <div className={cn("min-w-0", className)}>
       <div className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-subtle">{label}</div>
-      <div className={cn("font-display tabular mt-1 text-[34px] leading-none", tone === "danger" ? "text-danger" : "text-fg")}>{value}</div>
+      <div className={cn("tabular mt-1.5 text-[28px] font-medium leading-none tracking-[-0.03em]", tone === "danger" ? "text-danger" : "text-fg")}>{value}</div>
       {sub ? <div className="mt-1.5 truncate text-xs text-fg-subtle">{sub}</div> : null}
     </div>
   );

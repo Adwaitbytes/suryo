@@ -8,7 +8,7 @@ import {
   type LiveConnectConfig,
 } from "@google/genai";
 import { z } from "zod";
-import { ACTION_DESCRIPTIONS, ACTION_NAMES, actionSchemas, type ActionName } from "@/lib/agent/actions";
+import { ACTION_DESCRIPTIONS, ACTION_NAMES, actionSchemas, toolsFor, type ActionName } from "@/lib/agent/actions";
 import type { BusinessBundle } from "@/lib/agent/business";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { VOICE_MODEL } from "@/lib/ai/models";
@@ -33,8 +33,8 @@ function stripUnsupported(node: unknown): unknown {
 }
 
 /** One tool layer for every channel: the same zod schemas the chat agent uses, exported as JSON Schema. */
-export function voiceFunctionDeclarations(): FunctionDeclaration[] {
-  return ACTION_NAMES.map((name) => ({
+export function voiceFunctionDeclarations(kind: Bundle["business"]["kind"]): FunctionDeclaration[] {
+  return toolsFor(kind).map((name) => ({
     name,
     description: ACTION_DESCRIPTIONS[name],
     // "input" mode keeps fields with defaults optional, matching what executeAction accepts.
@@ -61,7 +61,7 @@ export function liveConnectConfig(bundle: Bundle): LiveConnectConfig {
   return {
     responseModalities: [Modality.AUDIO],
     systemInstruction: voiceSystemInstruction(bundle),
-    tools: [{ functionDeclarations: voiceFunctionDeclarations() }],
+    tools: [{ functionDeclarations: voiceFunctionDeclarations(bundle.business.kind) }],
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: bundle.business.persona.voice } } },
     inputAudioTranscription: {},
     outputAudioTranscription: {},

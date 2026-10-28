@@ -175,7 +175,7 @@ function BusinessSwitcher() {
           aria-expanded={open}
           className="flex h-11 w-full items-center gap-2.5 rounded-lg px-2 text-left transition-colors hover:bg-surface"
         >
-          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent-soft font-display text-[15px] text-accent">{business?.name.slice(0, 1) ?? ""}</span>
+          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent-soft text-[13px] font-semibold text-accent">{business?.name.slice(0, 1) ?? ""}</span>
           <span className="min-w-0 flex-1">
             {business ? (
               <>
@@ -204,7 +204,7 @@ function BusinessSwitcher() {
           }}
           className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left text-[13px] text-fg-muted hover:bg-surface-3 hover:text-fg"
         >
-          <span className="grid size-5 place-items-center rounded bg-surface-3 font-display text-xs text-fg-muted">{b.name.slice(0, 1)}</span>
+          <span className="grid size-5 place-items-center rounded bg-surface-3 text-[10.5px] font-semibold text-fg-muted">{b.name.slice(0, 1)}</span>
           <span className="flex-1 truncate">{b.name}</span>
           {b.isDemo ? <span className="font-mono text-[10px] text-fg-faint">demo</span> : null}
           {b.id === business?.id ? <Check aria-hidden className="size-3.5 text-accent" /> : null}

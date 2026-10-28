@@ -10,7 +10,7 @@ import type { EscalationQueue, QueueEscalation } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 import { errorMessage, sendJson } from "./api";
 import { ChannelIcon, ErrorNote, PageHeader, UrgencyChip } from "./bits";
-import { TRIGGER_LABELS, elapsed, formatDateTime, relativeTime } from "./format";
+import { TRIGGER_LABELS, elapsed, formatDateTime, isOverdue, isSevere, relativeTime } from "./format";
 import { touches, useNow, useResource } from "./hooks";
 import { useConsole } from "./provider";
 
@@ -95,7 +95,7 @@ function EscalationCard({ escalation: e, now, onChanged }: { escalation: QueueEs
   const [busy, setBusy] = useState<"claim" | "resolve" | null>(null);
   const lines = e.summary.split("\n").filter(Boolean).slice(0, 3);
   const claimed = e.status === "claimed";
-  const waitedMinutes = (now - new Date(e.createdAt).getTime()) / 60_000;
+  const overdue = isOverdue(e, now);
 
   const run = async (action: "claim" | "resolve") => {
     setBusy(action);
@@ -114,7 +114,7 @@ function EscalationCard({ escalation: e, now, onChanged }: { escalation: QueueEs
   };
 
   return (
-    <article className={cn("group relative overflow-hidden rounded-xl border bg-surface shadow-sm transition-colors", claimed ? "border-border" : "border-danger/30")}>
+    <article className={cn("group relative overflow-hidden rounded-xl border bg-surface shadow-sm transition-colors", !claimed && isSevere(e.urgency) ? "border-danger/30" : "border-border")}>
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", URGENCY_RAIL[e.urgency])} />
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-6 py-4 pr-5 pl-6">
         <div className="min-w-0">
@@ -141,7 +141,7 @@ function EscalationCard({ escalation: e, now, onChanged }: { escalation: QueueEs
         </div>
         <div className="flex flex-col items-end justify-between gap-3">
           <div className="text-right">
-            <div className={cn("tabular font-display text-[30px] leading-none", claimed ? "text-fg-muted" : waitedMinutes > 5 ? "text-danger" : "text-fg")}>{elapsed(e.createdAt, now)}</div>
+            <div className={cn("tabular font-mono text-[20px] font-medium leading-none tracking-[-0.02em]", claimed ? "text-fg-muted" : overdue ? "text-danger" : "text-fg")}>{elapsed(e.createdAt, now)}</div>
             <div className="mt-1 text-2xs text-fg-subtle">{claimed ? `claimed by ${e.claimedBy}` : "waiting"}</div>
           </div>
           <div className="flex items-center gap-2">
@@ -155,7 +155,7 @@ function EscalationCard({ escalation: e, now, onChanged }: { escalation: QueueEs
                 <ArrowUpRight aria-hidden className="size-3.5" />
               </Button>
             ) : (
-              <Button size="sm" variant="danger" onClick={() => run("claim")} disabled={busy !== null}>
+              <Button size="sm" variant="primary" onClick={() => run("claim")} disabled={busy !== null}>
                 <Hand aria-hidden className="size-3.5" />
                 {busy === "claim" ? "Taking over" : "Take over"}
               </Button>

@@ -86,7 +86,27 @@ export type Card =
   | { kind: "lead"; leadId: string; interest: string; score: number }
   | { kind: "escalation"; urgency: string; reason: string }
   | { kind: "email"; to: string; subject: string; status: "sent" | "failed" | "skipped" }
-  | { kind: "followup"; dueAt: string; kind_: string };
+  | { kind: "followup"; dueAt: string; kind_: string }
+  | {
+      kind: "order";
+      orderNumber: string;
+      status: string;
+      items: Array<{ name: string; size: string | null; quantity: number }>;
+      totalInr: number;
+      expectedDelivery: string | null;
+      deliveredAt: string | null;
+      carrier: string | null;
+      trackingNumber: string | null;
+    }
+  | {
+      kind: "return";
+      orderNumber: string;
+      type: "return" | "exchange";
+      status: string;
+      refundInr: number | null;
+      pickupDate: string | null;
+      exchangeSize: string | null;
+    };
 
 export type MessageMeta = {
   sources?: SourceRef[];

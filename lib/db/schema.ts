@@ -40,7 +40,7 @@ export const businesses = pgTable("businesses", {
   id: id(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
-  kind: text("kind", { enum: ["clinic", "generic"] }).notNull(),
+  kind: text("kind", { enum: ["clinic", "generic", "store"] }).notNull(),
   website: text("website"),
   timezone: text("timezone").notNull().default("Asia/Kolkata"),
   profile: jsonb("profile").$type<BusinessProfile>().notNull(),
@@ -342,3 +342,102 @@ export const evalResults = pgTable("eval_results", {
   conversationId: uuid("conversation_id"),
   createdAt: createdAt(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Commerce: products, orders, returns (used by businesses of kind "store") */
+/* ------------------------------------------------------------------ */
+
+export const ORDER_STATUSES = [
+  "placed",
+  "packed",
+  "shipped",
+  "out_for_delivery",
+  "delivered",
+  "cancelled",
+  "return_requested",
+  "returned",
+  "refunded",
+] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+export const products = pgTable(
+  "products",
+  {
+    id: id(),
+    businessId: businessId(),
+    sku: text("sku").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull(),
+    priceInr: integer("price_inr").notNull(),
+    sizes: text("sizes").array().notNull().default(sql`'{}'::text[]`),
+    imageUrl: text("image_url"),
+    description: text("description").notNull(),
+    finalSale: boolean("final_sale").notNull().default(false),
+    stock: integer("stock").notNull().default(0),
+  },
+  (t) => [uniqueIndex("products_sku_uq").on(t.businessId, t.sku)],
+);
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: id(),
+    businessId: businessId(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    orderNumber: text("order_number").notNull(),
+    status: text("status", { enum: ORDER_STATUSES }).notNull(),
+    totalInr: integer("total_inr").notNull(),
+    paymentMethod: text("payment_method", { enum: ["upi", "card", "cod"] }).notNull(),
+    shippingAddress: text("shipping_address").notNull(),
+    carrier: text("carrier"),
+    trackingNumber: text("tracking_number"),
+    placedAt: timestamp("placed_at", { withTimezone: true }).notNull(),
+    expectedDelivery: timestamp("expected_delivery", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    conversationId: conversationId(),
+  },
+  (t) => [
+    uniqueIndex("orders_number_uq").on(t.businessId, t.orderNumber),
+    index("orders_customer_idx").on(t.customerId),
+  ],
+);
+
+export const orderItems = pgTable("order_items", {
+  id: id(),
+  orderId: uuid("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  size: text("size"),
+  quantity: integer("quantity").notNull(),
+  priceInr: integer("price_inr").notNull(),
+  finalSale: boolean("final_sale").notNull().default(false),
+});
+
+export const returns = pgTable(
+  "returns",
+  {
+    id: id(),
+    businessId: businessId(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    conversationId: conversationId(),
+    type: text("type", { enum: ["return", "exchange"] }).notNull(),
+    reason: text("reason").notNull(),
+    exchangeSize: text("exchange_size"),
+    status: text("status", { enum: ["requested", "pickup_scheduled", "received", "refunded", "rejected"] })
+      .notNull()
+      .default("requested"),
+    refundInr: integer("refund_inr"),
+    refundMethod: text("refund_method"),
+    pickupDate: timestamp("pickup_date", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  // One open return or exchange per order, enforced by the database.
+  (t) => [uniqueIndex("returns_open_order_uq").on(t.orderId).where(sql`status in ('requested','pickup_scheduled','received')`)],
+);

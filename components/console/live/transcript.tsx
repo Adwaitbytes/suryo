@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { TranscriptMessage } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 import { TOOL_LABELS, formatClock, formatMs, sentimentLabel } from "../format";
-import { MessageCard } from "./cards";
+import { EscalationDivider, MessageCard } from "./cards";
 
 export function Transcript({ messages, customerLabel, agentName }: { messages: TranscriptMessage[]; customerLabel: string; agentName: string }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -76,11 +76,13 @@ function Bubble({ message: m, customerLabel, agentName }: { message: TranscriptM
   const human = m.role === "human";
   const tools = m.meta.tools ?? [];
   const sources = m.meta.sources ?? [];
-  const cards = m.meta.cards ?? [];
+  const allCards = m.meta.cards ?? [];
+  const cards = allCards.filter((c) => c.kind !== "escalation");
+  const escalations = allCards.flatMap((c) => (c.kind === "escalation" ? [c] : []));
   const author = customer ? customerLabel : human ? (m.meta.operator ?? "Front desk") : agentName;
 
   return (
-    <div className={cn("flex flex-col gap-1.5", customer ? "items-start" : "items-end")}>
+    <div className={cn("group flex flex-col gap-1.5", customer ? "items-start" : "items-end")}>
       <div className="flex items-center gap-2 px-1 text-2xs text-fg-subtle">
         <span className={cn("font-medium", human ? "text-info" : customer ? "text-fg-muted" : "text-fg-muted")}>{author}</span>
         {!customer && !human ? <span className="rounded border border-border px-1 font-mono text-[9.5px] uppercase tracking-wider text-fg-faint">AI</span> : null}
@@ -111,7 +113,7 @@ function Bubble({ message: m, customerLabel, agentName }: { message: TranscriptM
         </div>
       ) : null}
       {m.role === "agent" && (tools.length || sources.length || m.meta.latencyMs) ? (
-        <div className="flex max-w-[88%] flex-wrap items-center justify-end gap-1.5 px-1 font-mono text-[10.5px] text-fg-subtle">
+        <div className="flex max-w-[88%] flex-wrap items-center justify-end gap-1.5 px-1 font-mono text-[10.5px] text-fg-subtle opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
           {tools.map((t, i) => (
             <span key={`${t}-${i}`} className="inline-flex items-center gap-1 rounded border border-border bg-surface-2 px-1.5 py-px">
               <Wrench aria-hidden className="size-2.5" />
@@ -132,6 +134,11 @@ function Bubble({ message: m, customerLabel, agentName }: { message: TranscriptM
           ) : null}
         </div>
       ) : null}
+      {escalations.map((e, i) => (
+        <div key={i} className="mt-3 w-full">
+          <EscalationDivider urgency={e.urgency} reason={e.reason} at={m.createdAt} />
+        </div>
+      ))}
     </div>
   );
 }

@@ -76,7 +76,7 @@ export default async function Home() {
           </Reveal>
 
           <Reveal delay={0.15} className="mx-auto w-full max-w-[300px] lg:max-w-none">
-            <div className="rounded-3xl border border-border bg-surface p-6 shadow-lg">
+            <div className="rounded-3xl border border-border bg-surface p-5 shadow-lg">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-subtle">Scan to call</span>
                 <span className="flex items-center gap-1.5 text-[11px] text-success">
@@ -84,7 +84,7 @@ export default async function Home() {
                   {live.agentName} is available
                 </span>
               </div>
-              <CallQr path="/call/kesar" label={`Call ${live.businessName}`} className="mt-5" />
+              <CallQr path="/call/kesar" label={`Call ${live.businessName}`} tone="inverted" className="mt-5" codeClassName="w-[196px]" />
               <p className="mt-4 text-center text-[13px] leading-relaxed text-fg-muted">
                 Point your phone camera here and talk to {live.agentName}, the front desk at {live.businessName}.
               </p>
@@ -184,7 +184,7 @@ function LiveNumbers({ live }: { live: LiveSnapshot }) {
       {metrics.map((m) => (
         <div key={m.label} className="min-w-0">
           <dt className="text-[12px] text-fg-subtle">{m.label}</dt>
-          <dd className="tabular mt-2 font-display text-[40px] leading-none text-fg">{m.value}</dd>
+          <dd className="tabular mt-2 text-[34px] font-semibold leading-none tracking-[-0.04em] text-fg">{m.value}</dd>
           <dd className="mt-2 truncate font-mono text-[11px] text-fg-faint">{m.note}</dd>
         </div>
       ))}

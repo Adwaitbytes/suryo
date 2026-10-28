@@ -167,9 +167,9 @@ function DrawerBody({ detail, onClose }: { detail: CustomerDetail; onClose: () =
   return (
     <>
       <div className="flex items-start gap-4 border-b border-border px-6 py-5">
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft font-display text-xl text-accent">{initials(customer.name)}</span>
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft text-[15px] font-semibold tracking-[-0.01em] text-accent">{initials(customer.name)}</span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-display text-[28px] leading-tight text-fg">{customer.name ?? "Unnamed customer"}</h2>
+          <h2 className="truncate text-[20px] font-semibold leading-tight tracking-[-0.015em] text-fg">{customer.name ?? "Unnamed customer"}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-fg-subtle">
             {customer.phone ? <a href={`tel:${customer.phone}`} className="hover:text-fg">{customer.phone}</a> : null}
             {customer.email ? <a href={`mailto:${customer.email}`} className="hover:text-fg">{customer.email}</a> : null}
@@ -184,7 +184,7 @@ function DrawerBody({ detail, onClose }: { detail: CustomerDetail; onClose: () =
       <div className="grid grid-cols-4 divide-x divide-border border-b border-border">
         {Object.entries(counts).map(([k, v]) => (
           <div key={k} className="px-4 py-3">
-            <div className="tabular font-display text-2xl leading-none text-fg">{v}</div>
+            <div className="tabular text-[22px] font-medium leading-none tracking-[-0.03em] text-fg">{v}</div>
             <div className="mt-1 text-2xs text-fg-subtle capitalize">{k}</div>
           </div>
         ))}

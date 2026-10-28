@@ -5,10 +5,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { SectionLabel } from "@/components/ui/primitives";
 import type { ConversationStage } from "@/lib/contracts";
-import type { ConversationDetail, ToolCallRow } from "@/lib/console/types";
+import type { ConversationDetail, QueueEscalation, ToolCallRow } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 import { UrgencyChip } from "../bits";
-import { LANGUAGE_NAMES, STAGES, STAGE_LABELS, TOOL_LABELS, TRIGGER_LABELS, elapsed, formatClock, formatMs, sentimentLabel, titleCase } from "../format";
+import { LANGUAGE_NAMES, STAGES, STAGE_LABELS, TOOL_LABELS, TRIGGER_LABELS, elapsed, formatClock, formatMs, isOverdue, isSevere, sentimentLabel, titleCase } from "../format";
 
 export function ContextRail({ detail, now }: { detail: ConversationDetail; now: number }) {
   const { conversation, escalation, toolCalls, messages } = detail;
@@ -17,21 +17,7 @@ export function ContextRail({ detail, now }: { detail: ConversationDetail; now: 
 
   return (
     <aside aria-label="Conversation context" className="scroll-quiet flex min-h-0 flex-col overflow-y-auto border-l border-border bg-bg-subtle">
-      {openEscalation ? (
-        <section className="border-b border-danger/30 bg-danger-soft px-5 py-4">
-          <div className="flex items-center gap-2">
-            <CircleAlert aria-hidden className="size-4 text-danger" />
-            <span className="text-[13px] font-medium text-danger">{openEscalation.status === "claimed" ? `Claimed by ${openEscalation.claimedBy?.split(" (")[0] ?? "staff"}` : "Escalated, unclaimed"}</span>
-            <UrgencyChip urgency={openEscalation.urgency} solid />
-            <span className="tabular ml-auto whitespace-nowrap font-mono text-2xs text-danger">{elapsed(openEscalation.createdAt, now)}</span>
-          </div>
-          <div className="mt-2 text-[13px] text-fg">{openEscalation.reason}</div>
-          <div className="mt-1 font-mono text-2xs text-fg-subtle">
-            trigger {TRIGGER_LABELS[openEscalation.trigger]?.toLowerCase() ?? openEscalation.trigger}
-
-          </div>
-        </section>
-      ) : null}
+      {openEscalation ? <EscalationBanner escalation={openEscalation} now={now} /> : null}
 
       <section className="border-b border-border px-5 py-4">
         <SectionLabel className="flex items-center gap-1.5">
@@ -93,6 +79,36 @@ export function ContextRail({ detail, now }: { detail: ConversationDetail; now: 
         <ToolRail calls={toolCalls} />
       </section>
     </aside>
+  );
+}
+
+/** Tone follows urgency and ownership: once someone has claimed it, it stops shouting. */
+function EscalationBanner({ escalation: e, now }: { escalation: QueueEscalation; now: number }) {
+  const claimed = e.status === "claimed";
+  const severe = isSevere(e.urgency);
+  const overdue = isOverdue(e, now);
+  return (
+    <section
+      className={cn(
+        "border-b px-5 py-4",
+        claimed ? "border-border bg-surface" : severe ? "border-danger/30 bg-danger-soft" : "border-warning/25 bg-warning-soft",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {claimed ? (
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-success" />
+        ) : (
+          <CircleAlert aria-hidden className={cn("size-4", severe ? "text-danger" : "text-warning")} />
+        )}
+        <span className={cn("text-[13px] font-medium", claimed ? "text-fg" : severe ? "text-danger" : "text-warning")}>
+          {claimed ? `Claimed by ${e.claimedBy?.split(" (")[0] ?? "staff"}` : "Escalated, unclaimed"}
+        </span>
+        <UrgencyChip urgency={e.urgency} solid />
+        <span className={cn("tabular ml-auto whitespace-nowrap font-mono text-2xs", overdue ? "text-danger" : "text-fg-subtle")}>{elapsed(e.createdAt, now)}</span>
+      </div>
+      <div className="mt-2 text-[13px] text-fg">{e.reason}</div>
+      <div className="mt-1 font-mono text-2xs text-fg-subtle">trigger {TRIGGER_LABELS[e.trigger]?.toLowerCase() ?? e.trigger}</div>
+    </section>
   );
 }
 

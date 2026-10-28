@@ -131,3 +131,10 @@ export function initials(name: string | null | undefined): string {
     .map((p) => p[0]?.toUpperCase())
     .join("");
 }
+
+export const isSevere = (urgency: Urgency) => urgency === "critical" || urgency === "high";
+
+/** Red is reserved for a severe escalation nobody has picked up within five minutes. */
+export function isOverdue(e: { urgency: Urgency; status: string; createdAt: string }, now: number): boolean {
+  return isSevere(e.urgency) && e.status === "open" && now - new Date(e.createdAt).getTime() > 5 * 60_000;
+}

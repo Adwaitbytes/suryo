@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowUp, Check, ExternalLink, Loader2, Phone, RotateCcw, WifiOff, X } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { ArrowUp, Check, ChevronDown, ExternalLink, Loader2, Phone, RotateCcw, WifiOff, X } from "lucide-react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Dot } from "@/components/ui/badge";
 import type { Card, SourceRef } from "@/lib/contracts";
 import { cn } from "@/lib/utils";
@@ -266,7 +266,7 @@ function AgentMark({ name, human }: { name: string; human: boolean }) {
     <div
       aria-hidden
       className={cn(
-        "relative grid size-9 shrink-0 place-items-center rounded-full border font-display text-[19px] leading-none",
+        "relative grid size-9 shrink-0 place-items-center rounded-full border text-[15px] font-semibold leading-none",
         human ? "border-success/40 bg-success-soft text-success" : "border-accent/40 bg-accent-soft text-accent",
       )}
     >
@@ -507,27 +507,44 @@ function TypingIndicator({ reduce }: { reduce: boolean }) {
 }
 
 function Sources({ sources }: { sources: SourceRef[] }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const shown = sources.slice(0, 4);
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-fg-faint">Sources</span>
-      {sources.slice(0, 4).map((s) =>
-        s.url ? (
-          <a
-            key={s.id}
-            href={s.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex max-w-[200px] items-center gap-1 rounded-md border border-border bg-surface px-1.5 py-0.5 text-2xs text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
-          >
-            <span className="truncate">{s.title}</span>
-            <ExternalLink aria-hidden className="size-2.5 shrink-0 opacity-60" />
-          </a>
-        ) : (
-          <span key={s.id} className="inline-flex max-w-[200px] items-center rounded-md border border-border bg-surface px-1.5 py-0.5 text-2xs text-fg-muted">
-            <span className="truncate">{s.title}</span>
-          </span>
-        ),
-      )}
+    <div className="flex flex-col items-start gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={listId}
+        className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 -mx-1.5 text-[12px] text-fg-subtle transition-colors hover:text-fg"
+      >
+        Sources: <span className="tabular">{shown.length}</span>
+        <ChevronDown aria-hidden className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <ul id={listId} className="flex flex-wrap gap-1.5">
+          {shown.map((s) => (
+            <li key={s.id}>
+              {s.url ? (
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-[220px] items-center gap-1 rounded-md border border-border bg-surface px-1.5 py-0.5 text-[12px] text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+                >
+                  <span className="truncate">{s.title}</span>
+                  <ExternalLink aria-hidden className="size-2.5 shrink-0 opacity-60" />
+                </a>
+              ) : (
+                <span className="inline-flex max-w-[220px] items-center rounded-md border border-border bg-surface px-1.5 py-0.5 text-[12px] text-fg-muted">
+                  <span className="truncate">{s.title}</span>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

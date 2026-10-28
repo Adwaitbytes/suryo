@@ -83,6 +83,7 @@ export function LiveView() {
           onFilter={setFilter}
           now={now}
           loading={!snapshot}
+          agentName={agentName}
         />
         {selectedId ? (
           detail.data ? (
@@ -129,6 +130,7 @@ function KpiStrip({ snapshot, now }: { snapshot: Snapshot | null; now: number })
   const a = snapshot.analytics;
   const live = snapshot.conversations.filter(isOpen);
   const open = snapshot.escalations.filter((e) => e.status === "open");
+  const critical = open.some((e) => e.urgency === "critical");
   const oldest = open.reduce<string | null>((min, e) => (!min || e.createdAt < min ? e.createdAt : min), null);
   return (
     <div className="grid h-[104px] shrink-0 grid-cols-6 gap-6 border-b border-border px-6 py-5 2xl:px-8">
@@ -141,11 +143,11 @@ function KpiStrip({ snapshot, now }: { snapshot: Snapshot | null; now: number })
       <StatTile label="Contained by AI" value={`${Math.round(a.containmentRate * 100)}%`} sub="Finished without a human" />
       <StatTile label="Booked by AI" value={a.bookings} sub={a.revenueBookedInr ? `${formatInr(a.revenueBookedInr)} in fees` : "No bookings yet"} />
       <StatTile label="Avg response" value={a.avgResponseMs ? formatMs(a.avgResponseMs) : "n/a"} sub={a.p50FirstTokenMs ? `${formatMs(a.p50FirstTokenMs)} median first token` : "Across agent replies"} />
-      <Link href="/console/escalations" className={cn("-m-2 rounded-xl p-2 transition-colors", open.length ? "hover:bg-danger-soft" : "hover:bg-surface")}>
+      <Link href="/console/escalations" className={cn("-m-2 rounded-xl p-2 transition-colors", critical ? "hover:bg-danger-soft" : "hover:bg-surface")}>
         <StatTile
           label="Open escalations"
           value={open.length}
-          tone={open.length ? "danger" : undefined}
+          tone={critical ? "danger" : undefined}
           sub={oldest ? `Oldest waiting ${elapsed(oldest, now)}` : "Queue is clear"}
         />
       </Link>

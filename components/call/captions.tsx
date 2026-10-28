@@ -17,7 +17,7 @@ type Props = {
 export function Captions({ captions, agentName, humanName, reducedMotion, emptyText, limit = 3 }: Props) {
   const visible = captions.filter((c) => c.text.trim()).slice(-limit);
   return (
-    <div role="log" aria-live="polite" aria-label="Live captions" className="flex min-h-[7.5rem] flex-col justify-end gap-2.5">
+    <div role="log" aria-live="polite" aria-label="Live captions" className="flex min-h-[9rem] flex-col justify-end gap-3">
       {visible.length === 0 ? (
         <p className="text-[15px] leading-relaxed text-fg-subtle">{emptyText}</p>
       ) : (
@@ -34,14 +34,14 @@ export function Captions({ captions, agentName, humanName, reducedMotion, emptyT
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
-                  "text-pretty leading-relaxed",
-                  latest ? "text-[17px]" : "text-[15px]",
-                  caption.role === "customer" ? "text-fg-muted" : "text-fg",
+                  "text-pretty",
+                  latest ? "text-[19px] leading-[1.4] tracking-[-0.012em] text-fg sm:text-[21px]" : "text-[15px] leading-relaxed",
+                  !latest && (caption.role === "customer" ? "text-fg-muted" : "text-fg"),
                 )}
               >
                 <span
                   className={cn(
-                    "mr-2 text-[13px] font-medium",
+                    "mb-1 block text-[11px] font-medium uppercase tracking-[0.08em]",
                     caption.role === "agent" ? "text-accent" : caption.role === "human" ? "text-success" : "text-fg-subtle",
                   )}
                 >

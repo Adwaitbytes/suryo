@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUp, Headset, MessageSquare, Mic, MicOff, Phone, PhoneOff, RotateCcw, TriangleAlert } from "lucide-react";
+import { ArrowUp, MessageSquare, Mic, MicOff, Phone, PhoneOff, RotateCcw, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ActionCards } from "@/components/call/action-cards";
@@ -36,16 +36,28 @@ export function CallScreen({ slug, agentName, businessName, languages }: Props) 
       <header className="relative z-10 mx-auto flex h-14 w-full max-w-lg shrink-0 items-center justify-between px-5 pt-[env(safe-area-inset-top)]">
         <StatusLabel state={state} />
         {state.connectedAt && (inCall || phase === "human") ? (
-          <CallTimer from={state.connectedAt} />
+          <span className="flex items-center gap-3">
+            {phase !== "human" ? <LatencyToken latency={state.latency} /> : null}
+            <CallTimer from={state.connectedAt} />
+          </span>
         ) : null}
       </header>
 
       <section className="relative flex min-h-0 flex-1 flex-col items-center">
         <div className="relative z-10 flex flex-col items-center px-6 pt-3 text-center sm:pt-6">
-          <h1 className="font-display text-[56px] leading-[0.95] text-fg sm:text-[68px]">{state.agentName}</h1>
-          <p className="mt-2 text-[15px] text-fg-muted">
-            {phase === "human" ? `${HUMAN_NAME} from the front desk is with you` : `Front desk at ${state.businessName}`}
-          </p>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={phase === "human" ? "human" : "agent"}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex flex-col items-center"
+            >
+              <h1 className="font-display text-[56px] leading-[0.95] text-fg sm:text-[68px]">{phase === "human" ? HUMAN_NAME : state.agentName}</h1>
+              <p className="mt-2 text-[15px] text-fg-muted">{phase === "human" ? `Front desk, ${state.businessName}` : `Front desk at ${state.businessName}`}</p>
+            </motion.div>
+          </AnimatePresence>
         </div>
         <div className="relative w-full min-h-0 flex-1">
           <CallVisualizer
@@ -71,8 +83,7 @@ export function CallScreen({ slug, agentName, businessName, languages }: Props) 
           <CallOver state={state} chatHref={chatHref} onRestart={() => void call.start()} />
         ) : (
           <>
-            {phase === "human" ? <HandoffBanner reducedMotion={reducedMotion} /> : null}
-            <ActionCards actions={state.actions} reducedMotion={reducedMotion} />
+            {phase === "human" ? <HandoffLine reducedMotion={reducedMotion} /> : <ActionCards actions={state.actions} reducedMotion={reducedMotion} />}
             <Captions
               captions={state.captions}
               agentName={state.agentName}
@@ -81,7 +92,7 @@ export function CallScreen({ slug, agentName, businessName, languages }: Props) 
               limit={phase === "human" ? 4 : 3}
               emptyText={phase === "connecting" ? "Connecting you now." : `${state.agentName} will answer in a moment.`}
             />
-            {phase === "human" ? <HumanReply onSend={(text) => call.sendText(text)} /> : <LatencyReadout latency={state.latency} />}
+            {phase === "human" ? <HumanReply onSend={(text) => call.sendText(text)} /> : null}
           </>
         )}
       </section>
@@ -166,16 +177,16 @@ function formatDuration(ms: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function LatencyReadout({ latency }: { latency: CallState["latency"] }) {
+/** Voice to voice reply time as one quiet token beside the timer. */
+function LatencyToken({ latency }: { latency: CallState["latency"] }) {
+  const ms = latency.last ?? latency.average;
+  if (ms === null) return null;
+  const seconds = (ms / 1000).toFixed(1);
+  const average = latency.average === null ? "" : `, average ${(latency.average / 1000).toFixed(1)} seconds`;
   return (
-    <div className="flex items-center gap-4 text-[12px] text-fg-subtle" aria-label="Voice to voice response time">
-      <span>
-        Reply time <span className="font-mono text-fg-muted tabular">{latency.last === null ? "--" : `${latency.last} ms`}</span>
-      </span>
-      <span>
-        Average <span className="font-mono text-fg-muted tabular">{latency.average === null ? "--" : `${latency.average} ms`}</span>
-      </span>
-    </div>
+    <span className="font-mono text-[13px] text-fg-subtle tabular" aria-label={`Reply time ${seconds} seconds${average}`} title="Voice to voice reply time">
+      {seconds} s
+    </span>
   );
 }
 
@@ -291,21 +302,17 @@ function CallOver({ state, chatHref, onRestart }: { state: CallState; chatHref: 
   );
 }
 
-function HandoffBanner({ reducedMotion }: { reducedMotion: boolean }) {
+function HandoffLine({ reducedMotion }: { reducedMotion: boolean }) {
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="flex items-start gap-3 rounded-2xl border border-success/20 bg-success-soft px-4 py-3.5"
-      >
-        <Headset className="mt-0.5 size-4 shrink-0 text-success" />
-        <p className="text-sm leading-relaxed text-fg">
-          {HUMAN_NAME} from the front desk has joined, with the full summary. Type below and she will reply here.
-        </p>
-      </motion.div>
-    </AnimatePresence>
+    <motion.p
+      initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className="flex items-center justify-center gap-2 text-[13px] text-success"
+    >
+      <span aria-hidden className="size-1.5 rounded-full bg-success" />
+      {HUMAN_NAME} joined with your call summary
+    </motion.p>
   );
 }
 
@@ -349,7 +356,7 @@ function HumanReply({ onSend }: { onSend: (text: string) => Promise<void> }) {
           type="submit"
           disabled={!text.trim() || sending}
           aria-label="Send"
-          className="grid size-9 place-items-center rounded-full bg-accent text-accent-fg transition-[background-color,opacity] hover:bg-accent-strong disabled:opacity-40"
+          className="grid size-9 place-items-center rounded-full bg-accent text-accent-fg transition-[background-color,color] hover:bg-accent-strong disabled:bg-surface-3 disabled:text-fg-faint disabled:opacity-100 disabled:hover:bg-surface-3"
         >
           <ArrowUp className="size-4" />
         </button>

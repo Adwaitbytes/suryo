@@ -276,7 +276,7 @@ export const clinicKnowledge: Array<{ title: string; content: string }> = [
   {
     title: "Payments and insurance",
     content:
-      "We accept UPI, all major debit and credit cards, and cash. No cost EMI is available on bills above 10,000 rupees. We are empanelled for cashless dental treatment with Star Health and HDFC Ergo for accidental dental injury only. For other insurers we provide itemised bills for reimbursement. Cosmetic treatments such as whitening, laser and facials are not covered by insurance.",
+      "We accept UPI, all major debit and credit cards, and cash. No cost EMI is available on bills above 10,000 rupees. Cashless treatment: we are empanelled with Star Health and HDFC Ergo for cashless dental treatment after an accidental dental injury only. Reimbursement: for every other treatment, including routine treatment such as a root canal for Star Health and HDFC Ergo members, and for all other insurers, you pay at the clinic and we give an itemised bill you can submit to your insurer. Whether the insurer reimburses depends on your policy. Cosmetic treatments such as whitening, laser and facials are not covered by insurance.",
   },
   {
     title: "Cancellation and rescheduling policy",

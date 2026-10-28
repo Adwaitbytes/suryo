@@ -4,6 +4,8 @@ import { db, schema } from "@/lib/db";
 import type { Card } from "@/lib/contracts";
 import { emit } from "@/lib/events";
 import { emailHtml, formatForEmail, sendEmail } from "@/lib/notify/email";
+import { RESERVED_EMAIL } from "@/lib/notify/suppress";
+import { COMMERCE_DESCRIPTIONS, COMMERCE_LABELS, CommerceError, commerceHandlers, commerceSchemas, type CommerceActionName } from "./commerce";
 import { searchKnowledge, MIN_CONFIDENCE, toSourceRef } from "@/lib/kb/search";
 import { TIME_WINDOWS, addDaysIso, formatSlot, istToUtc, todayIso, type TimeWindow } from "@/lib/time";
 import { loadBusiness, matchLocation, matchService, matchStaff, type BusinessBundle } from "./business";
@@ -37,7 +39,7 @@ const confirmed = z
   .literal(true)
   .describe("Only true after you read the details back and the customer explicitly said yes");
 
-export const actionSchemas = {
+const coreSchemas = {
   search_knowledge: z.object({
     query: z.string().min(2).describe("The customer's question rephrased as a search query, in English"),
   }),
@@ -117,11 +119,23 @@ export const actionSchemas = {
   }),
 } as const;
 
+export const actionSchemas = { ...coreSchemas, ...commerceSchemas };
+
+type CoreActionName = keyof typeof coreSchemas;
 export type ActionName = keyof typeof actionSchemas;
 export const ACTION_NAMES = Object.keys(actionSchemas) as ActionName[];
 
+const SHARED_TOOLS: ActionName[] = ["search_knowledge", "lookup_customer", "upsert_customer", "create_ticket", "capture_lead", "escalate_to_human", "schedule_follow_up"];
+const BOOKING_TOOLS: ActionName[] = ["check_availability", "book_appointment", "reschedule_appointment", "cancel_appointment", "send_confirmation"];
+const STORE_TOOLS: ActionName[] = ["lookup_order", "track_order", "cancel_order", "request_return", "refund_status"];
+
+/** Each kind of business exposes only the tools that make sense for it. */
+export function toolsFor(kind: "clinic" | "generic" | "store"): ActionName[] {
+  return kind === "store" ? [...SHARED_TOOLS, ...STORE_TOOLS] : [...SHARED_TOOLS, ...BOOKING_TOOLS];
+}
+
 /** Short human labels for the live tool rail in chat, call screen and console. */
-export const ACTION_LABELS: Record<ActionName, string> = {
+const CORE_LABELS: Record<CoreActionName, string> = {
   search_knowledge: "Searching knowledge base",
   check_availability: "Checking availability",
   lookup_customer: "Looking up customer",
@@ -136,7 +150,7 @@ export const ACTION_LABELS: Record<ActionName, string> = {
   schedule_follow_up: "Scheduling follow up",
 };
 
-export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
+const CORE_DESCRIPTIONS: Record<CoreActionName, string> = {
   search_knowledge:
     "Search the business knowledge base. Call before answering ANY factual question about services, prices, policies, hours, doctors, locations or aftercare.",
   check_availability:
@@ -159,6 +173,13 @@ export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
 /* Execution                                                           */
 /* ------------------------------------------------------------------ */
 
+export const ACTION_LABELS: Record<ActionName, string> = { ...CORE_LABELS, ...COMMERCE_LABELS };
+export const ACTION_DESCRIPTIONS: Record<ActionName, string> = { ...CORE_DESCRIPTIONS, ...COMMERCE_DESCRIPTIONS };
+
+/* ------------------------------------------------------------------ */
+/* Dispatch                                                            */
+/* ------------------------------------------------------------------ */
+
 export async function executeAction(
   ctx: ActionContext,
   name: ActionName,
@@ -167,17 +188,24 @@ export async function executeAction(
   const started = Date.now();
   const parsed = actionSchemas[name].safeParse(rawInput);
   let result: ActionResult;
-  if (!parsed.success) {
+  if (!toolsFor(ctx.bundle.business.kind).includes(name)) {
+    result = { ok: false, data: { error: "tool_not_available_for_this_business" } };
+  } else if (!parsed.success) {
     result = {
       ok: false,
       data: { error: "invalid_input", issues: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) },
     };
   } else {
     try {
-      result = await handlers[name](ctx, parsed.data as never);
+      const handler = (name in commerceHandlers ? commerceHandlers[name as CommerceActionName] : handlers[name as CoreActionName]) as (
+        c: ActionContext,
+        input: unknown,
+      ) => Promise<ActionResult>;
+      result = await handler(ctx, parsed.data);
     } catch (err) {
-      const message = err instanceof ActionError ? err.message : "internal_error";
-      if (!(err instanceof ActionError)) console.error(`[action:${name}]`, err);
+      const known = err instanceof ActionError || err instanceof CommerceError;
+      const message = known ? err.message : "internal_error";
+      if (!known) console.error(`[action:${name}]`, err);
       result = { ok: false, data: { error: message } };
     }
   }
@@ -204,7 +232,7 @@ export async function executeAction(
   return result;
 }
 
-type Handlers = { [K in ActionName]: (ctx: ActionContext, input: z.infer<(typeof actionSchemas)[K]>) => Promise<ActionResult> };
+type Handlers = { [K in CoreActionName]: (ctx: ActionContext, input: z.infer<(typeof coreSchemas)[K]>) => Promise<ActionResult> };
 
 const handlers: Handlers = {
   async search_knowledge(ctx, { query }) {
@@ -772,8 +800,6 @@ async function dispatchEmail(
   cards.push(card);
   return card.kind === "email" ? card.status : "unknown";
 }
-
-const RESERVED_EMAIL = /@([a-z0-9-]+\.)*(example\.(com|net|org)|[a-z0-9-]+\.(test|example|invalid|localhost))$/i;
 
 async function sendAppointmentEmail(
   ctx: ActionContext,
