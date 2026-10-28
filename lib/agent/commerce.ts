@@ -206,9 +206,8 @@ export const commerceHandlers: Handlers = {
     const refundInr =
       input.type === "exchange" ? 0 : item.priceInr * item.quantity - (feeWaived ? 0 : STORE_POLICY.returnPickupFeeInr);
     const pickupDate = nextBusinessDay(new Date(), 1);
-    let created;
     try {
-      [created] = await db
+      await db
         .insert(schema.returns)
         .values({
           businessId: ctx.bundle.business.id,
@@ -221,8 +220,7 @@ export const commerceHandlers: Handlers = {
           refundInr: input.type === "return" ? refundInr : null,
           refundMethod: input.type === "return" ? (order.paymentMethod === "cod" ? "UPI or bank transfer" : `original ${order.paymentMethod}`) : null,
           pickupDate,
-        })
-        .returning();
+        });
     } catch {
       throw new CommerceError("return_already_open: this order already has an open return or exchange. Use refund_status.");
     }
