@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { TranscriptMessage } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 import { TOOL_LABELS, formatClock, formatMs, sentimentLabel } from "../format";
+import { distinctCards } from "@/components/chat/order-meta";
 import { EscalationDivider, MessageCard } from "./cards";
 
 export function Transcript({ messages, customerLabel, agentName }: { messages: TranscriptMessage[]; customerLabel: string; agentName: string }) {
@@ -77,7 +78,7 @@ function Bubble({ message: m, customerLabel, agentName }: { message: TranscriptM
   const tools = m.meta.tools ?? [];
   const sources = m.meta.sources ?? [];
   const allCards = m.meta.cards ?? [];
-  const cards = allCards.filter((c) => c.kind !== "escalation");
+  const cards = distinctCards(allCards.filter((c) => c.kind !== "escalation"));
   const escalations = allCards.flatMap((c) => (c.kind === "escalation" ? [c] : []));
   const author = customer ? customerLabel : human ? (m.meta.operator ?? "Front desk") : agentName;
 

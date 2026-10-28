@@ -205,3 +205,37 @@ export type FollowUpRow = {
 };
 
 export type { Analytics };
+
+export type OrderListRow = {
+  id: string;
+  orderNumber: string;
+  status: string;
+  totalInr: number;
+  paymentMethod: "upi" | "card" | "cod";
+  placedAt: string;
+  expectedDelivery: string | null;
+  deliveredAt: string | null;
+  carrier: string | null;
+  trackingNumber: string | null;
+  customerId: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  items: Array<{ name: string; size: string | null; quantity: number }>;
+  conversationId: string | null;
+};
+
+export type ReturnListRow = {
+  id: string;
+  orderNumber: string;
+  type: "return" | "exchange";
+  status: "requested" | "pickup_scheduled" | "received" | "refunded" | "rejected";
+  reason: string;
+  exchangeSize: string | null;
+  refundInr: number | null;
+  pickupDate: string | null;
+  createdAt: string;
+  customerName: string | null;
+  conversationId: string | null;
+};
+
+export type OrdersResponse = { orders: OrderListRow[]; returns: ReturnListRow[] };

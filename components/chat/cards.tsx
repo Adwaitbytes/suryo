@@ -11,13 +11,20 @@ import {
   LifeBuoy,
   Mail,
   MapPin,
+  Package,
+  PackageCheck,
+  PackageX,
+  RefreshCcw,
   Sparkles,
   Stethoscope,
+  Truck,
+  Undo2,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge, type Tone } from "@/components/ui/badge";
 import type { Card } from "@/lib/contracts";
 import { cn, formatInr } from "@/lib/utils";
+import { ORDER_STEPS, orderStatusMeta, returnStatusMeta } from "./order-meta";
 import { dayKey, formatClock, formatDay, ticketReference } from "./protocol";
 
 type SlotsCard = Extract<Card, { kind: "slots" }>;
@@ -258,6 +265,119 @@ function FollowUpCard({ card }: { card: Extract<Card, { kind: "followup" }> }) {
   );
 }
 
+type OrderCardData = Extract<Card, { kind: "order" }>;
+
+function OrderStepper({ step }: { step: number }) {
+  return (
+    <div className="px-3.5 pt-3">
+      <ol className="flex items-center gap-1" aria-label="Order progress">
+        {ORDER_STEPS.map((s, i) => (
+          <li key={s.status} className="flex flex-1 items-center" aria-current={i === step ? "step" : undefined}>
+            <span className="sr-only">
+              {s.label}
+              {i < step ? ", done" : i === step ? ", current" : ""}
+            </span>
+            <span aria-hidden className={cn("h-1 w-full rounded-full", i <= step ? (step === ORDER_STEPS.length - 1 ? "bg-success" : "bg-accent") : "bg-surface-3")} />
+          </li>
+        ))}
+      </ol>
+      <div aria-hidden className="mt-1.5 flex justify-between font-mono text-[10px] text-fg-faint">
+        <span>Placed</span>
+        <span>Delivered</span>
+      </div>
+    </div>
+  );
+}
+
+function OrderCard({ card }: { card: OrderCardData }) {
+  const meta = orderStatusMeta(card.status);
+  const icon = card.status === "delivered" ? <PackageCheck className="size-4 text-success" /> : card.status === "cancelled" ? <PackageX className="size-4" /> : <Package className="size-4" />;
+  const when = card.deliveredAt
+    ? `Delivered ${formatDay(card.deliveredAt)}`
+    : card.expectedDelivery && meta.step !== null
+      ? `Arriving by ${formatDay(card.expectedDelivery)}`
+      : undefined;
+  return (
+    <Shell>
+      <div className="flex items-start gap-3 px-3.5 pt-3.5">
+        <div aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-surface-2 text-fg-muted">
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-fg-subtle">Order</div>
+          <div className="tabular mt-0.5 font-mono text-[14px] font-medium leading-snug text-fg">{card.orderNumber}</div>
+          {when ? <div className="mt-0.5 truncate text-[12px] text-fg-subtle">{when}</div> : null}
+        </div>
+        <Badge tone={meta.tone}>{meta.label}</Badge>
+      </div>
+      {meta.step !== null ? <OrderStepper step={meta.step} /> : null}
+      <ul className={cn("mx-3.5 mb-3 mt-3 space-y-1 border-t border-border pt-2.5", card.status === "cancelled" && "opacity-60")}>
+        {card.items.map((item, i) => (
+          <li key={`${item.name}_${i}`} className="flex items-baseline justify-between gap-3 text-[13px]">
+            <span className="min-w-0 truncate text-fg">{item.name}</span>
+            <span className="tabular shrink-0 font-mono text-2xs text-fg-subtle">
+              {item.size && item.size !== "Free" ? `${item.size} · ` : ""}Qty {item.quantity}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-2/60 px-3.5 py-2">
+        {card.carrier && card.trackingNumber ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-2xs text-fg-subtle">
+            <Truck aria-hidden className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {card.carrier} <span className="font-mono text-fg-muted">{card.trackingNumber}</span>
+            </span>
+          </span>
+        ) : (
+          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-subtle">{meta.step !== null && meta.step < 2 ? "Not shipped yet" : "Total"}</span>
+        )}
+        <span className="tabular shrink-0 text-[13px] font-medium text-fg">{formatInr(card.totalInr)}</span>
+      </div>
+    </Shell>
+  );
+}
+
+function ReturnCard({ card }: { card: Extract<Card, { kind: "return" }> }) {
+  const meta = returnStatusMeta(card.status);
+  const exchange = card.type === "exchange";
+  const next =
+    card.status === "refunded"
+      ? "Refund completed"
+      : card.status === "rejected"
+        ? null
+        : exchange
+          ? "The new size ships once the pickup is done"
+          : "Refund is issued after the pickup";
+  return (
+    <Shell>
+      <Header
+        icon={exchange ? <RefreshCcw className="size-4" /> : <Undo2 className="size-4" />}
+        eyebrow={exchange ? "Size exchange" : "Return"}
+        title={exchange && card.exchangeSize ? `New size ${card.exchangeSize}` : `Refund for ${card.orderNumber}`}
+        meta={exchange ? `Order ${card.orderNumber}` : undefined}
+        badge={<Badge tone={meta.tone}>{meta.label}</Badge>}
+      />
+      <dl className="mx-3.5 mb-3 mt-2.5 border-t border-border pt-1.5">
+        {card.pickupDate ? (
+          <Row icon={<Truck className="size-3.5" />} label="Pickup">
+            <span className="text-fg">{formatDay(card.pickupDate)}</span>, 10 AM to 6 PM
+          </Row>
+        ) : null}
+        {next ? (
+          <Row icon={<Clock3 className="size-3.5" />} label="Next">
+            {next}
+          </Row>
+        ) : null}
+      </dl>
+      <div className="flex items-center justify-between border-t border-border bg-surface-2/60 px-3.5 py-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-subtle">{exchange ? "Exchange fee" : "Refund"}</span>
+        <span className="tabular text-[13px] font-medium text-fg">{exchange ? "Free" : card.refundInr != null ? formatInr(card.refundInr) : "Pending"}</span>
+      </div>
+    </Shell>
+  );
+}
+
 export function CardView({
   card,
   onPickSlot,
@@ -282,5 +402,9 @@ export function CardView({
       return <EmailCard card={card} />;
     case "followup":
       return <FollowUpCard card={card} />;
+    case "order":
+      return <OrderCard card={card} />;
+    case "return":
+      return <ReturnCard card={card} />;
   }
 }

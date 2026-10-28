@@ -7,29 +7,40 @@ import { Dot } from "@/components/ui/badge";
 import type { Card, SourceRef } from "@/lib/contracts";
 import { cn } from "@/lib/utils";
 import { CardView, slotRequest } from "./cards";
+import { distinctCards } from "./order-meta";
 import type { ChatMessage, ToolStep } from "./protocol";
 import { useChat } from "./use-chat";
 
 export type ChatViewProps = {
   slug: string;
   businessName: string;
+  businessKind: "clinic" | "generic" | "store";
   agentName: string;
   embed: boolean;
   initialConversationId: string | null;
 };
 
-const QUICK_REPLIES = [
-  "Kal shaam teeth cleaning ka slot?",
-  "What does a root canal cost?",
-  "Reschedule my appointment",
-  "Do you treat acne scars?",
-  "Palasia branch kab khulta hai?",
-];
+const QUICK_REPLIES: Record<"appointments" | "store", { eyebrow: string; replies: string[]; intro: (business: string) => string }> = {
+  appointments: {
+    eyebrow: "Front desk, open now",
+    replies: ["Kal shaam teeth cleaning ka slot?", "What does a root canal cost?", "Reschedule my appointment", "Do you treat acne scars?", "Palasia branch kab khulta hai?"],
+    intro: (business) => `Book or move an appointment, check prices, or ask anything about ${business}. A person from the front desk can step in at any time.`,
+  },
+  store: {
+    eyebrow: "Order help, open now",
+    replies: ["Track my order", "Return or exchange", "Cancel an order", "Kya COD available hai?"],
+    intro: (business) => `Track an order, start a return or exchange, or ask anything about ${business}. A person from the support team can step in at any time.`,
+  },
+};
+
+function isDraftMessage(data: unknown): data is { type: "suryo:draft"; text: string } {
+  return typeof data === "object" && data !== null && "type" in data && data.type === "suryo:draft" && "text" in data && typeof data.text === "string";
+}
 
 const OPERATOR_NAME = "Priya";
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-export function ChatView({ slug, businessName, agentName, embed, initialConversationId }: ChatViewProps) {
+export function ChatView({ slug, businessName, businessKind, agentName, embed, initialConversationId }: ChatViewProps) {
   const chat = useChat({ slug, initialConversationId });
   const { messages, status, phase, online } = chat;
   const reduce = useReducedMotion() ?? false;
@@ -52,7 +63,12 @@ export function ChatView({ slug, businessName, agentName, embed, initialConversa
   useEffect(() => {
     if (!embed) return;
     const onMessage = (event: MessageEvent) => {
-      if (event.source === window.parent && event.data === "suryo:focus") focusInput();
+      if (event.source !== window.parent) return;
+      if (event.data === "suryo:focus") focusInput();
+      else if (isDraftMessage(event.data)) {
+        setDraft(event.data.text.slice(0, 500));
+        focusInput();
+      }
     };
     // Keystrokes inside the iframe never reach the host page, so Escape is forwarded from here.
     const onKey = (event: globalThis.KeyboardEvent) => {
@@ -60,6 +76,7 @@ export function ChatView({ slug, businessName, agentName, embed, initialConversa
     };
     window.addEventListener("message", onMessage);
     window.addEventListener("keydown", onKey);
+    window.parent.postMessage("suryo:ready", "*");
     return () => {
       window.removeEventListener("message", onMessage);
       window.removeEventListener("keydown", onKey);
@@ -180,7 +197,7 @@ export function ChatView({ slug, businessName, agentName, embed, initialConversa
           {phase === "loading" ? (
             <LoadingState />
           ) : messages.length === 0 ? (
-            <EmptyState agentName={agentName} businessName={businessName} onPick={submit} disabled={!online} reduce={reduce} />
+            <EmptyState agentName={agentName} businessName={businessName} quick={QUICK_REPLIES[businessKind === "store" ? "store" : "appointments"]} onPick={submit} disabled={!online} reduce={reduce} />
           ) : (
             <ol className="flex flex-col gap-4 px-4 py-5" aria-label="Conversation">
               <AnimatePresence initial={false}>
@@ -308,12 +325,14 @@ function LoadingState() {
 function EmptyState({
   agentName,
   businessName,
+  quick,
   onPick,
   disabled,
   reduce,
 }: {
   agentName: string;
   businessName: string;
+  quick: (typeof QUICK_REPLIES)[keyof typeof QUICK_REPLIES];
   onPick: (text: string) => void;
   disabled: boolean;
   reduce: boolean;
@@ -325,19 +344,19 @@ function EmptyState({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: EASE }}
       >
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-subtle">Front desk, open now</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-subtle">{quick.eyebrow}</p>
         <h2 className="mt-3 font-display text-[34px] leading-[1.05] text-fg">
           Hi, I am {agentName}.
           <span className="block italic text-fg-muted">How can I help?</span>
         </h2>
         <p className="mt-3 max-w-[36ch] text-[14px] leading-relaxed text-fg-muted">
-          Book or move an appointment, check prices, or ask anything about {businessName}. A person from the front desk can step in at any time.
+          {quick.intro(businessName)}
         </p>
       </motion.div>
       <div className="mt-7">
         <p className="mb-2.5 text-2xs font-medium text-fg-subtle">Try asking</p>
         <ul className="flex flex-wrap gap-2">
-          {QUICK_REPLIES.map((q, i) => (
+          {quick.replies.map((q, i) => (
             <motion.li
               key={q}
               initial={reduce ? false : { opacity: 0, y: 6 }}
@@ -429,7 +448,7 @@ function AgentTurn({
         </button>
       ) : null}
 
-      {message.cards.map((card, i) => (
+      {distinctCards(message.cards).map((card, i) => (
         <motion.div
           key={`${card.kind}-${i}`}
           initial={reduce ? false : { opacity: 0, y: 6, scale: 0.99 }}

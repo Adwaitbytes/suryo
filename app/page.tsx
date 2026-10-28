@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, MessageCircle, Phone } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MessageCircle, Phone, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { formatLatency, formatPercent, Wordmark } from "@/components/marketing/brand";
@@ -72,6 +72,25 @@ export default async function Home() {
                 <MessageCircle aria-hidden className="size-4 text-fg-muted" />
                 Try the chat
               </Link>
+            </div>
+            <div className="mt-6 flex max-w-xl flex-wrap items-center gap-x-4 gap-y-2.5 rounded-2xl border border-border bg-surface/70 py-3 pl-3.5 pr-4">
+              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-surface-2 text-fg-muted">
+                <ShoppingBag className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-mono text-[10px] uppercase tracking-[0.14em] text-fg-subtle">Also a live demo</span>
+                <span className="block text-[14px] font-medium text-fg">Online store: Saanjh Studio</span>
+              </span>
+              <span className="flex items-center gap-4 text-[13px]">
+                <Link href="/store" className="group inline-flex items-center gap-1 font-medium text-fg transition-colors hover:text-accent">
+                  Visit the store
+                  <ArrowUpRight aria-hidden className="size-3.5 text-fg-faint transition-colors group-hover:text-accent" />
+                </Link>
+                <Link href="/call/saanjh" className="group inline-flex items-center gap-1 font-medium text-fg transition-colors hover:text-accent">
+                  Call Meera
+                  <Phone aria-hidden className="size-3.5 text-fg-faint transition-colors group-hover:text-accent" />
+                </Link>
+              </span>
             </div>
           </Reveal>
 
@@ -160,7 +179,7 @@ export default async function Home() {
             <Wordmark className="[&_span]:text-[18px]" />
             <span className="text-fg-faint">Built at CODE E FIESTA 2026</span>
           </span>
-          <span className="font-mono text-[11px] text-fg-faint">Kesar Dental &amp; Skin is a fictional demo business</span>
+          <span className="font-mono text-[11px] text-fg-faint">Kesar Dental &amp; Skin and Saanjh Studio are fictional demo businesses</span>
         </div>
       </footer>
     </div>

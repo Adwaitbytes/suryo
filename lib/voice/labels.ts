@@ -15,4 +15,9 @@ export const TOOL_LABELS: Record<string, string> = {
   send_confirmation: "Sending confirmation",
   escalate_to_human: "Connecting a human",
   schedule_follow_up: "Scheduling a follow up",
+  lookup_order: "Looking up order",
+  track_order: "Tracking shipment",
+  cancel_order: "Cancelling order",
+  request_return: "Starting return",
+  refund_status: "Checking refund",
 };

@@ -47,6 +47,11 @@ export const TOOL_LABELS: Record<string, string> = {
   send_confirmation: "Confirmation email",
   escalate_to_human: "Escalate",
   schedule_follow_up: "Follow up",
+  lookup_order: "Order lookup",
+  track_order: "Track order",
+  cancel_order: "Cancel order",
+  request_return: "Return or exchange",
+  refund_status: "Refund status",
 };
 
 export const TRIGGER_LABELS: Record<string, string> = {

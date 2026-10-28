@@ -23,6 +23,7 @@ export default async function ChatPage(props: PageProps<"/chat/[slug]">) {
     <ChatView
       slug={business.slug}
       businessName={business.name}
+      businessKind={business.kind}
       agentName={business.persona.agentName}
       embed={query.embed === "1"}
       initialConversationId={c}

@@ -1,11 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarCheck, CalendarClock, CalendarX, Check, Clock, Headset, Loader2, Mail, Sparkles, Ticket, TriangleAlert } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarX, Check, Clock, Headset, Loader2, Mail, Package, PackageCheck, PackageX, RefreshCcw, Sparkles, Ticket, TriangleAlert, Undo2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ORDER_STEPS, orderStatusMeta, returnStatusMeta } from "@/components/chat/order-meta";
 import type { Card } from "@/lib/contracts";
 import type { CallAction } from "@/lib/voice/call";
-import { cn } from "@/lib/utils";
+import { cn, formatInr } from "@/lib/utils";
 
 const TZ = "Asia/Kolkata";
 const dayDate = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
@@ -127,7 +128,51 @@ function CardView({ card }: { card: Card }) {
           <p className="mt-0.5 text-[13px] text-fg-muted tabular">{dayDate.format(new Date(card.dueAt))}, {timeOnly.format(new Date(card.dueAt)).toUpperCase()}</p>
         </Shell>
       );
+    case "order":
+      return <OrderView card={card} />;
+    case "return": {
+      const meta = returnStatusMeta(card.status);
+      const exchange = card.type === "exchange";
+      return (
+        <Shell icon={exchange ? <RefreshCcw className="size-4" /> : <Undo2 className="size-4" />} tone={card.status === "rejected" ? "muted" : "success"} title={exchange ? `Exchange to size ${card.exchangeSize ?? ""}`.trim() : "Return booked"}>
+          <p className="mt-0.5 text-[13px] text-fg-muted">
+            <span className="font-mono">{card.orderNumber}</span> · {meta.label}
+            {card.pickupDate ? `, pickup ${dayDate.format(new Date(card.pickupDate))}` : ""}
+          </p>
+          {!exchange && card.refundInr != null ? <p className="tabular mt-0.5 text-[13px] text-fg">Refund {formatInr(card.refundInr)}</p> : null}
+        </Shell>
+      );
+    }
   }
+}
+
+function OrderView({ card }: { card: Extract<Card, { kind: "order" }> }) {
+  const meta = orderStatusMeta(card.status);
+  const step = meta.step;
+  const icon = card.status === "delivered" ? <PackageCheck className="size-4" /> : card.status === "cancelled" ? <PackageX className="size-4" /> : <Package className="size-4" />;
+  const when = card.deliveredAt ? `Delivered ${dayDate.format(new Date(card.deliveredAt))}` : card.expectedDelivery && meta.step !== null ? `Arriving by ${dayDate.format(new Date(card.expectedDelivery))}` : null;
+  return (
+    <Shell icon={icon} tone={card.status === "delivered" ? "success" : meta.step === null ? "muted" : "accent"} title={meta.label}>
+      <p className="mt-0.5 text-[13px] text-fg-muted">
+        <span className="font-mono text-fg">{card.orderNumber}</span>
+        {when ? ` · ${when}` : ""}
+      </p>
+      {step !== null ? (
+        <div aria-hidden className="mt-2 flex gap-1">
+          {ORDER_STEPS.map((s, i) => (
+            <span key={s.status} className={cn("h-1 flex-1 rounded-full", i <= step ? "bg-accent" : "bg-surface-3")} />
+          ))}
+        </div>
+      ) : null}
+      <p className="mt-2 truncate text-[13px] text-fg-muted">
+        {card.items.map((item) => `${item.name}${item.size && item.size !== "Free" ? ` (${item.size})` : ""}`).join(", ")}
+      </p>
+      <p className="mt-0.5 flex justify-between gap-3 text-2xs text-fg-subtle">
+        <span className="truncate font-mono">{card.carrier && card.trackingNumber ? `${card.carrier} ${card.trackingNumber}` : "Not shipped yet"}</span>
+        <span className="tabular text-[13px] text-fg">{formatInr(card.totalInr)}</span>
+      </p>
+    </Shell>
+  );
 }
 
 const toneClass = {
@@ -151,7 +196,7 @@ function Shell({ icon, tone, title, children }: { icon: ReactNode; tone: keyof t
 }
 
 /** Rich cards are kept for outcomes the caller acts on; everything else settles into a quiet chip. */
-const RICH_CARDS = new Set<Card["kind"]>(["booking", "slots", "ticket"]);
+const RICH_CARDS = new Set<Card["kind"]>(["booking", "slots", "ticket", "order", "return"]);
 
 function isCompact(action: CallAction): boolean {
   return action.status === "done" && action.cards.every((card) => !RICH_CARDS.has(card.kind));
@@ -189,6 +234,11 @@ function doneLabel(name: string, fallback: string): string {
     upsert_customer: "Saved your details",
     send_confirmation: "Confirmation on its way",
     schedule_follow_up: "Follow up scheduled",
+    lookup_order: "Found your order",
+    track_order: "Checked the shipment",
+    cancel_order: "Order cancelled",
+    request_return: "Return booked",
+    refund_status: "Checked your refund",
   };
   return done[name] ?? fallback;
 }

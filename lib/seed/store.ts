@@ -109,20 +109,23 @@ export const storePolicies: Array<{ title: string; content: string }> = [
   },
 ];
 
-type ProductSeed = { sku: string; name: string; category: string; priceInr: number; sizes: string[]; description: string; finalSale?: boolean };
+type ProductSeed = { sku: string; name: string; category: string; priceInr: number; sizes: string[]; description: string; finalSale?: boolean; imageUrl?: string };
+
+/** Unsplash photos checked to load; products without one render a woven swatch on the storefront. */
+const photo = (id: string) => `https://images.unsplash.com/photo-${id}?w=1200&q=80&auto=format&fit=crop`;
 
 export const storeProducts: ProductSeed[] = [
-  { sku: "KR-INDIGO", name: "Indigo Block Print Kurta", category: "Kurtas", priceInr: 1890, sizes: ["S", "M", "L", "XL", "XXL"], description: "Hand block printed cotton kurta in indigo, relaxed fit." },
-  { sku: "KR-MAHESH", name: "Maheshwari Silk Cotton Kurta", category: "Kurtas", priceInr: 2650, sizes: ["S", "M", "L", "XL"], description: "Maheshwari silk cotton with a zari border." },
-  { sku: "KR-RUST", name: "Rust Chanderi Kurta", category: "Kurtas", priceInr: 2290, sizes: ["XS", "S", "M", "L", "XL"], description: "Light Chanderi weave in rust, straight cut." },
-  { sku: "SH-LINEN-W", name: "White Linen Shirt", category: "Shirts", priceInr: 2190, sizes: ["S", "M", "L", "XL", "XXL"], description: "Pure linen, mandarin collar." },
-  { sku: "SH-KHADI", name: "Olive Khadi Shirt", category: "Shirts", priceInr: 1590, sizes: ["S", "M", "L", "XL"], description: "Handspun khadi, regular fit." },
-  { sku: "DR-MUL", name: "Mulmul Tiered Dress", category: "Dresses", priceInr: 2490, sizes: ["XS", "S", "M", "L"], description: "Soft mulmul cotton, tiered midi length." },
-  { sku: "DR-AJRAKH", name: "Ajrakh Wrap Dress", category: "Dresses", priceInr: 2890, sizes: ["S", "M", "L", "XL"], description: "Natural dyed Ajrakh print, wrap tie." },
-  { sku: "CO-SAGE", name: "Sage Linen Co-ord Set", category: "Co-ord sets", priceInr: 3490, sizes: ["XS", "S", "M", "L", "XL"], description: "Linen shirt and trousers in sage." },
+  { sku: "KR-INDIGO", name: "Indigo Block Print Kurta", category: "Kurtas", priceInr: 1890, sizes: ["S", "M", "L", "XL", "XXL"], description: "Hand block printed cotton kurta in indigo, relaxed fit.", imageUrl: photo("1597983073493-88cd35cf93b0") },
+  { sku: "KR-MAHESH", name: "Maheshwari Silk Cotton Kurta", category: "Kurtas", priceInr: 2650, sizes: ["S", "M", "L", "XL"], description: "Maheshwari silk cotton with a zari border.", imageUrl: photo("1610030469983-98e550d6193c") },
+  { sku: "KR-RUST", name: "Rust Chanderi Kurta", category: "Kurtas", priceInr: 2290, sizes: ["XS", "S", "M", "L", "XL"], description: "Light Chanderi weave in rust, straight cut.", imageUrl: photo("1605763240000-7e93b172d754") },
+  { sku: "SH-LINEN-W", name: "White Linen Shirt", category: "Shirts", priceInr: 2190, sizes: ["S", "M", "L", "XL", "XXL"], description: "Pure linen, mandarin collar.", imageUrl: photo("1603252109303-2751441dd157") },
+  { sku: "SH-KHADI", name: "Olive Khadi Shirt", category: "Shirts", priceInr: 1590, sizes: ["S", "M", "L", "XL"], description: "Handspun khadi, regular fit.", imageUrl: photo("1596755094514-f87e34085b2c") },
+  { sku: "DR-MUL", name: "Mulmul Tiered Dress", category: "Dresses", priceInr: 2490, sizes: ["XS", "S", "M", "L"], description: "Soft mulmul cotton, tiered midi length.", imageUrl: photo("1585487000160-6ebcfceb0d03") },
+  { sku: "DR-AJRAKH", name: "Ajrakh Wrap Dress", category: "Dresses", priceInr: 2890, sizes: ["S", "M", "L", "XL"], description: "Natural dyed Ajrakh print, wrap tie.", imageUrl: photo("1609357605129-26f69add5d6e") },
+  { sku: "CO-SAGE", name: "Sage Linen Co-ord Set", category: "Co-ord sets", priceInr: 3490, sizes: ["XS", "S", "M", "L", "XL"], description: "Linen shirt and trousers in sage.", imageUrl: photo("1523381210434-271e8be1f52b") },
   { sku: "PT-PALAZZO", name: "Black Cotton Palazzo", category: "Bottoms", priceInr: 990, sizes: ["S", "M", "L", "XL", "XXL"], description: "Wide leg cotton palazzo with pockets." },
-  { sku: "DP-CHANDERI", name: "Chanderi Dupatta", category: "Accessories", priceInr: 1290, sizes: ["Free"], description: "Chanderi dupatta with tassels." },
-  { sku: "SALE-KURTA", name: "End of Season Printed Kurta", category: "Sale", priceInr: 790, sizes: ["S", "M", "L"], description: "Printed cotton kurta, end of season sale.", finalSale: true },
+  { sku: "DP-CHANDERI", name: "Chanderi Dupatta", category: "Accessories", priceInr: 1290, sizes: ["Free"], description: "Chanderi dupatta with tassels.", imageUrl: photo("1583391733956-3750e0ff4e8b") },
+  { sku: "SALE-KURTA", name: "End of Season Printed Kurta", category: "Sale", priceInr: 790, sizes: ["S", "M", "L"], description: "Printed cotton kurta, end of season sale.", finalSale: true, imageUrl: photo("1572804013309-59a88b7e92f1") },
   { sku: "MASK-3", name: "Cotton Mask Pack of 3", category: "Accessories", priceInr: 299, sizes: ["Free"], description: "Reusable cotton masks.", finalSale: true },
 ];
 
@@ -176,7 +179,7 @@ export async function seedStore(): Promise<string> {
     })
     .returning();
   await db.insert(schema.products).values(
-    storeProducts.map((p) => ({ businessId: business.id, sku: p.sku, name: p.name, category: p.category, priceInr: p.priceInr, sizes: p.sizes, description: p.description, finalSale: p.finalSale ?? false, stock: 40 })),
+    storeProducts.map((p) => ({ businessId: business.id, sku: p.sku, name: p.name, category: p.category, priceInr: p.priceInr, sizes: p.sizes, description: p.description, finalSale: p.finalSale ?? false, imageUrl: p.imageUrl ?? null, stock: 40 })),
   );
   const embeddings = await embedDocuments(storePolicies.map((k) => `${k.title}\n${k.content}`));
   await db.insert(schema.kbChunks).values(

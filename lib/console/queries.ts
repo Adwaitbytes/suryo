@@ -15,6 +15,7 @@ import type {
   FollowUpRow,
   LeadRow,
   LiveConversation,
+  OrdersResponse,
   QueueEscalation,
   Snapshot,
   TicketRow,
@@ -496,4 +497,67 @@ export async function listFollowUps(businessId: string, scope: Scope = {}): Prom
     customerContact: x.channel === "email" ? maskEmailAddress(email) : maskPhone(phone),
     conversationId: x.conversationId,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Orders and returns (store businesses)                               */
+/* ------------------------------------------------------------------ */
+
+export async function listOrders(businessId: string): Promise<OrdersResponse> {
+  const { orders: o, orderItems: oi, returns: r } = schema;
+  const [orderRows, returnRows] = await Promise.all([
+    db
+      .select({ order: o, customerName: cu.name, customerPhone: cu.phone })
+      .from(o)
+      .leftJoin(cu, eq(cu.id, o.customerId))
+      .where(and(eq(o.businessId, businessId), notEvalConversation(o.conversationId)))
+      .orderBy(desc(o.placedAt))
+      .limit(200),
+    db
+      .select({ ret: r, orderNumber: o.orderNumber, customerName: cu.name })
+      .from(r)
+      .innerJoin(o, eq(o.id, r.orderId))
+      .leftJoin(cu, eq(cu.id, o.customerId))
+      .where(and(eq(r.businessId, businessId), notEvalConversation(r.conversationId)))
+      .orderBy(desc(r.createdAt))
+      .limit(200),
+  ]);
+  const ids = orderRows.map((row) => row.order.id);
+  const items = ids.length
+    ? await db.select({ orderId: oi.orderId, name: oi.name, size: oi.size, quantity: oi.quantity }).from(oi).where(inArray(oi.orderId, ids))
+    : [];
+  const byOrder = new Map<string, Array<{ name: string; size: string | null; quantity: number }>>();
+  for (const { orderId, ...item } of items) byOrder.set(orderId, [...(byOrder.get(orderId) ?? []), item]);
+  return {
+    orders: orderRows.map(({ order, customerName, customerPhone }) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalInr: order.totalInr,
+      paymentMethod: order.paymentMethod,
+      placedAt: iso(order.placedAt),
+      expectedDelivery: isoOrNull(order.expectedDelivery),
+      deliveredAt: isoOrNull(order.deliveredAt),
+      carrier: order.carrier,
+      trackingNumber: order.trackingNumber,
+      customerId: order.customerId,
+      customerName,
+      customerPhone: maskPhone(customerPhone),
+      items: byOrder.get(order.id) ?? [],
+      conversationId: order.conversationId,
+    })),
+    returns: returnRows.map(({ ret, orderNumber, customerName }) => ({
+      id: ret.id,
+      orderNumber,
+      type: ret.type,
+      status: ret.status,
+      reason: ret.reason,
+      exchangeSize: ret.exchangeSize,
+      refundInr: ret.refundInr,
+      pickupDate: isoOrNull(ret.pickupDate),
+      createdAt: iso(ret.createdAt),
+      customerName,
+      conversationId: ret.conversationId,
+    })),
+  };
 }

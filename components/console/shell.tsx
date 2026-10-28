@@ -9,7 +9,7 @@ import { Kbd } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { useResetDemo, useTheme } from "./actions";
 import { CommandPalette } from "./command-palette";
-import { isActive, NAV } from "./nav";
+import { isActive, navFor } from "./nav";
 import { Popover } from "./popover";
 import { ConsoleProvider, useConsole } from "./provider";
 import { Toaster } from "./toaster";
@@ -29,6 +29,8 @@ function isTyping(target: EventTarget | null): boolean {
 
 function ShellFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { business } = useConsole();
+  const kind = business?.kind;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteKey, setPaletteKey] = useState(0);
   const openPalette = useCallback(() => {
@@ -49,7 +51,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
       const key = e.key.toLowerCase();
       if (leader.current && Date.now() - leader.current < 1200) {
         leader.current = null;
-        const target = NAV.find((n) => n.shortcut === key);
+        const target = navFor(kind).find((n) => n.shortcut === key);
         if (target) {
           e.preventDefault();
           router.push(target.href);
@@ -60,7 +62,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, paletteOpen, openPalette]);
+  }, [router, paletteOpen, openPalette, kind]);
 
   return (
     <div className="flex h-dvh min-h-0 w-full overflow-hidden bg-bg text-fg">
@@ -74,7 +76,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
 
 function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const pathname = usePathname();
-  const { snapshot } = useConsole();
+  const { snapshot, business } = useConsole();
   const openEscalations = snapshot?.escalations.filter((e) => e.status === "open").length ?? 0;
   const live = snapshot?.conversations.filter((c) => c.status === "active" || c.status === "escalated" || c.status === "human").length ?? 0;
 
@@ -98,7 +100,7 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         <Kbd>⌘K</Kbd>
       </button>
       <nav aria-label="Console" className="mt-4 flex flex-col gap-px px-2">
-        {NAV.map((item) => {
+        {navFor(business?.kind).map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
           const count = item.href === "/console/escalations" ? openEscalations : item.href === "/console" ? live : 0;

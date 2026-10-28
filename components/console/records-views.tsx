@@ -14,7 +14,7 @@ import { dayKey, formatClock, formatDate, relativeTime, titleCase } from "./form
 import { touches, useNow, useResource } from "./hooks";
 import { useConsole } from "./provider";
 
-function Tabs<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string; count?: number }>; onChange: (v: T) => void }) {
+export function Tabs<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string; count?: number }>; onChange: (v: T) => void }) {
   return (
     <div role="tablist" className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
       {options.map((o) => (
@@ -34,7 +34,7 @@ function Tabs<T extends string>({ value, options, onChange }: { value: T; option
   );
 }
 
-function CustomerCell({ name, onOpen, sub }: { name: string | null; onOpen?: () => void; sub?: string | null }) {
+export function CustomerCell({ name, onOpen, sub }: { name: string | null; onOpen?: () => void; sub?: string | null }) {
   return (
     <div className="min-w-0">
       {onOpen ? (
@@ -49,7 +49,7 @@ function CustomerCell({ name, onOpen, sub }: { name: string | null; onOpen?: () 
   );
 }
 
-function TranscriptLink({ id }: { id: string | null }) {
+export function TranscriptLink({ id }: { id: string | null }) {
   if (!id) return <span className="text-fg-faint">Front desk</span>;
   return (
     <Link href={`/console?c=${id}`} className="inline-flex items-center gap-0.5 text-fg-muted hover:text-fg">

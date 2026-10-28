@@ -2,6 +2,8 @@
  * Suryo chat widget. One script tag on any site:
  *   <script src="https://<host>/widget.js" data-business="kesar" async></script>
  * Everything lives inside a closed shadow root so neither page CSS nor ours can bleed across.
+ * Host pages can open it with a drafted message:
+ *   window.dispatchEvent(new CustomEvent("suryo:open", { detail: { message: "Track my order" } }));
  */
 (function () {
   "use strict";
@@ -87,6 +89,8 @@
 
   var iframe = null;
   var isOpen = false;
+  var frameReady = false;
+  var pendingDraft = "";
 
   function ensureFrame() {
     if (iframe) return;
@@ -104,6 +108,13 @@
     if (!iframe || !iframe.contentWindow) return;
     iframe.focus();
     iframe.contentWindow.postMessage("suryo:focus", origin);
+  }
+
+  // The chat only fills its composer; the visitor still chooses to send.
+  function sendDraft() {
+    if (!iframe || !iframe.contentWindow) return;
+    iframe.contentWindow.postMessage({ type: "suryo:draft", text: pendingDraft }, origin);
+    pendingDraft = "";
   }
 
   function open() {
@@ -138,9 +149,22 @@
     if (event.key === "Escape" && isOpen) close();
   });
 
+  window.addEventListener("suryo:open", function (event) {
+    var detail = event.detail;
+    var text = detail && typeof detail.message === "string" ? detail.message.slice(0, 500) : "";
+    pendingDraft = text;
+    open();
+    if (text && frameReady) sendDraft();
+  });
+
   window.addEventListener("message", function (event) {
     if (event.origin !== origin || !iframe || event.source !== iframe.contentWindow) return;
     if (event.data === "suryo:close") close();
+    // The chat announces itself once its listeners are attached, which is later than the load event.
+    if (event.data === "suryo:ready") {
+      frameReady = true;
+      if (pendingDraft) sendDraft();
+    }
   });
 
   function mount() {

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Kbd } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { useResetDemo, useRunFollowUps, useTheme } from "./actions";
-import { NAV } from "./nav";
+import { navFor } from "./nav";
 import { useConsole } from "./provider";
 
 type Command = {
@@ -39,7 +39,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const slug = business?.slug ?? "kesar";
     const openTab = (href: string) => window.open(href, "_blank", "noopener");
     return [
-      ...NAV.map<Command>((n) => ({ id: `nav:${n.href}`, group: "Navigate", label: n.label, icon: n.icon, keys: ["G", n.shortcut.toUpperCase()], run: () => router.push(n.href) })),
+      ...navFor(business?.kind).map<Command>((n) => ({ id: `nav:${n.href}`, group: "Navigate", label: n.label, icon: n.icon, keys: ["G", n.shortcut.toUpperCase()], run: () => router.push(n.href) })),
       { id: "act:reset", group: "Actions", label: "Reset demo", icon: RotateCcw, confirm: "Press Enter again to reset all demo data", run: () => void reset() },
       { id: "act:theme", group: "Actions", label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme", icon: Moon, run: toggle },
       { id: "act:followups", group: "Actions", label: "Run follow up delivery now", icon: Send, run: () => void runFollowUps() },
