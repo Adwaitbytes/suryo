@@ -26,9 +26,10 @@ export function orderedKeys(): string[] {
   return [...rotated.filter((k) => (benched.get(k) ?? 0) < now), ...rotated.filter((k) => (benched.get(k) ?? 0) >= now)];
 }
 
+/** Quota and transient availability errors both mean "try another account". */
 export function isQuotaError(err: unknown): boolean {
   const text = err instanceof Error ? `${err.message} ${String((err as { cause?: unknown }).cause ?? "")}` : String(err);
-  return /quota|rate.?limit|429|RESOURCE_EXHAUSTED|exceeded/i.test(text);
+  return /quota|rate.?limit|429|RESOURCE_EXHAUSTED|exceeded|503|unavailable|overloaded|UNAVAILABLE/i.test(text);
 }
 
 export function bench(key: string): void {
