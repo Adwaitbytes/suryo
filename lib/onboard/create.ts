@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, like, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, like, or } from "drizzle-orm";
 import type { BusinessProfile, Persona } from "@/lib/contracts";
 import { db, schema } from "@/lib/db";
 import { buildSlots, scheduleFromHours } from "@/lib/seed/reset";
@@ -41,31 +41,41 @@ export function priceInrFrom(price: string): number | null {
 
 export type CreatedBusiness = { id: string; slug: string; name: string; replaced: boolean };
 
-/**
- * Writes the business and everything the agent's tools need: a location, a team calendar,
- * the bookable offering as a service anyone on the team can deliver, two weeks of slots
- * and the embedded knowledge base. Re-onboarding the same website replaces the earlier agent
- * and keeps its link, so a demo can be rerun without piling up copies.
- */
-export async function createOnboardedBusiness(input: {
-  website: string;
-  profile: BusinessProfile;
-  persona: Persona;
-  chunks: Array<Chunk & { embedding: number[] }>;
-  onboardMs: number;
-}): Promise<CreatedBusiness & { slots: number }> {
-  const host = new URL(input.website).hostname.replace(/^www\./, "");
+/** Earlier agents this run replaces: the same website host, or for document only runs the same business name. */
+async function previousAgents(website: string | null, name: string): Promise<Array<{ id: string; slug: string }>> {
   const candidates = await db
-    .select({ id: schema.businesses.id, slug: schema.businesses.slug, website: schema.businesses.website })
+    .select({ id: schema.businesses.id, slug: schema.businesses.slug, website: schema.businesses.website, name: schema.businesses.name })
     .from(schema.businesses)
-    .where(and(eq(schema.businesses.isDemo, false), eq(schema.businesses.kind, "generic"), isNotNull(schema.businesses.website)));
-  const previous = candidates.filter((c) => {
+    .where(and(eq(schema.businesses.isDemo, false), eq(schema.businesses.kind, "generic"), website ? isNotNull(schema.businesses.website) : isNull(schema.businesses.website)));
+  if (!website) {
+    const key = name.trim().toLowerCase();
+    return candidates.filter((c) => c.name.trim().toLowerCase() === key);
+  }
+  const host = new URL(website).hostname.replace(/^www\./, "");
+  return candidates.filter((c) => {
     try {
       return new URL(c.website ?? "").hostname.replace(/^www\./, "") === host;
     } catch {
       return false;
     }
   });
+}
+
+/**
+ * Writes the business and everything the agent's tools need: a location, a team calendar,
+ * the bookable offering as a service anyone on the team can deliver, two weeks of slots
+ * and the embedded knowledge base. Re-onboarding the same website (or, without one, the same
+ * business name from documents) replaces the earlier agent and keeps its link, so a demo can
+ * be rerun without piling up copies.
+ */
+export async function createOnboardedBusiness(input: {
+  website: string | null;
+  profile: BusinessProfile;
+  persona: Persona;
+  chunks: Array<Chunk & { embedding: number[] }>;
+  onboardMs: number;
+}): Promise<CreatedBusiness & { slots: number }> {
+  const previous = await previousAgents(input.website, input.profile.name);
 
   return db.transaction(async (tx) => {
     for (const p of previous) await tx.delete(schema.businesses).where(eq(schema.businesses.id, p.id));
@@ -106,7 +116,10 @@ export async function createOnboardedBusiness(input: {
       })
       .returning();
 
-    const offering = input.profile.services.find((s) => s.name.toLowerCase() === input.profile.bookableOffering.toLowerCase());
+    const bookable = input.profile.bookableOffering.toLowerCase();
+  // Documents often name the service in full ("Initial assessment and treatment plan (45 min)") and the offering in short.
+  const offering =
+    input.profile.services.find((s) => s.name.toLowerCase() === bookable) ?? input.profile.services.find((s) => s.name.toLowerCase().startsWith(`${bookable} `));
     await tx.insert(schema.services).values({
       businessId: business.id,
       name: input.profile.bookableOffering,

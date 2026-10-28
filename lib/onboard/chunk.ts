@@ -6,6 +6,10 @@ export type Chunk = { title: string; sourceUrl: string | null; content: string }
 const TARGET = 700;
 const OVERLAP = 120;
 const MAX_CHUNKS = 48;
+/** Uploaded documents are the owner's own material and usually denser than web pages, so they get a larger share. */
+export const MAX_CHUNKS_WITH_DOCUMENTS = 96;
+/** Source of the profile fact sheet when there is no website to attribute it to. */
+export const OVERVIEW_SOURCE = "suryo://overview";
 
 /**
  * Splits page text on line boundaries into roughly 700 character chunks with a short
@@ -13,7 +17,7 @@ const MAX_CHUNKS = 48;
  * Each chunk keeps the nearest heading so it reads on its own. The embedding quota is per
  * passage, so the total is capped and shared fairly between pages.
  */
-export function chunkPages(pages: CrawledPage[]): Chunk[] {
+export function chunkPages(pages: CrawledPage[], maxChunks = MAX_CHUNKS): Chunk[] {
   const seen = new Set<string>();
   const perPage: Chunk[][] = [];
   for (const page of pages) {
@@ -55,8 +59,8 @@ export function chunkPages(pages: CrawledPage[]): Chunk[] {
   }
   // Round robin across pages so a long homepage cannot crowd out the contact or pricing page.
   const out: Chunk[] = [];
-  for (let round = 0; out.length < MAX_CHUNKS && perPage.some((c) => c.length > round); round++) {
-    for (const chunks of perPage) if (chunks[round] && out.length < MAX_CHUNKS) out.push(chunks[round]);
+  for (let round = 0; out.length < maxChunks && perPage.some((c) => c.length > round); round++) {
+    for (const chunks of perPage) if (chunks[round] && out.length < maxChunks) out.push(chunks[round]);
   }
   return out;
 }
@@ -76,9 +80,10 @@ function splitLong(line: string): string[] {
 
 /**
  * A compact fact sheet built from the extracted profile, so questions like "what are your
- * hours" retrieve one precise passage. Everything in it was extracted from the crawled pages.
+ * hours" retrieve one precise passage. Everything in it was extracted from the crawled pages
+ * or uploaded documents.
  */
-export function profileChunk(profile: BusinessProfile, website: string): Chunk {
+export function profileChunk(profile: BusinessProfile, website: string | null): Chunk {
   const lines = [
     `${profile.name}: ${profile.description}`,
     profile.services.length

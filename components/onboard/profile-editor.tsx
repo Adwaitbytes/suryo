@@ -52,13 +52,16 @@ export function ProfileEditor({
   businessId,
   profile,
   persona,
+  source = "website",
   onSaved,
 }: {
   businessId: string;
   profile: BusinessProfile;
   persona: Persona;
+  source?: "website" | "documents";
   onSaved: (profile: BusinessProfile, persona: Persona) => void;
 }) {
+  const origin = source === "website" ? "the website" : "your documents";
   const [draft, setDraft] = useState<Draft>(() => toDraft(profile, persona));
   const [baseline, setBaseline] = useState(() => JSON.stringify(toDraft(profile, persona)));
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "saved" | "error"; message?: string }>({ kind: "idle" });
@@ -129,9 +132,9 @@ export function ProfileEditor({
         </Field>
       </Section>
 
-      <Section title="Services" description="Prices appear only where the website publishes them.">
+      <Section title="Services" description={`Prices appear only where ${origin} ${source === "website" ? "publishes" : "state"} them.`}>
         <div className="flex flex-col gap-2">
-          {draft.profile.services.length === 0 ? <p className="text-[13px] text-fg-subtle">No services were listed on the website. Add the ones customers ask about.</p> : null}
+          {draft.profile.services.length === 0 ? <p className="text-[13px] text-fg-subtle">No services were listed in {origin}. Add the ones customers ask about.</p> : null}
           {draft.profile.services.map((s, i) => (
             <div key={i} className="group grid grid-cols-[1fr_auto] items-start gap-2 sm:grid-cols-[1.3fr_0.8fr_auto]">
               <input
@@ -203,7 +206,7 @@ export function ProfileEditor({
                 ? "Unsaved changes"
                 : status.kind === "saved"
                   ? "Saved. The agent uses this from its next reply."
-                  : "Everything here was read from the website."}
+                  : `Everything here was read from ${origin}.`}
         </span>
         <div className="flex gap-2">
           {dirty ? (

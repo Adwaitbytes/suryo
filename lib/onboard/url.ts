@@ -4,7 +4,18 @@ import { isIP } from "node:net";
 export class OnboardError extends Error {
   constructor(
     message: string,
-    readonly code: "invalid_url" | "blocked_host" | "unreachable" | "no_content" | "extraction_failed" | "timeout",
+    readonly code:
+      | "invalid_url"
+      | "blocked_host"
+      | "unreachable"
+      | "no_content"
+      | "extraction_failed"
+      | "timeout"
+      | "unsupported_file"
+      | "file_too_large"
+      | "too_many_files"
+      | "no_text"
+      | "encrypted",
   ) {
     super(message);
   }

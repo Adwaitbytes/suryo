@@ -3,17 +3,17 @@
 import { Check } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { STEP_ORDER, type StepState } from "./use-onboard";
+import type { DocumentRead, StepState } from "./use-onboard";
 import type { OnboardStep } from "@/lib/onboard/pipeline";
 
 const seconds = (ms?: number) => (ms === undefined ? "" : `${(ms / 1000).toFixed(1)}s`);
 
-export function ProgressTimeline({ steps, failed }: { steps: Record<OnboardStep, StepState>; failed: boolean }) {
+export function ProgressTimeline({ steps, order, failed }: { steps: Record<OnboardStep, StepState>; order: OnboardStep[]; failed: boolean }) {
   return (
     <ol className="relative flex flex-col">
-      {STEP_ORDER.map((key, i) => {
+      {order.map((key, i) => {
         const step = steps[key];
-        const last = i === STEP_ORDER.length - 1;
+        const last = i === order.length - 1;
         const stalled = failed && step.status === "active";
         return (
           <li key={key} className="relative flex gap-4 pb-5 last:pb-0">
@@ -91,6 +91,39 @@ export function PageFeed({ pages }: { pages: Array<{ url: string; title: string;
           );
         })}
       </AnimatePresence>
+    </ul>
+  );
+}
+
+export function DocumentFeed({ documents, expected }: { documents: DocumentRead[]; expected: number }) {
+  const pending = Math.max(0, expected - documents.length);
+  return (
+    <ul className="flex flex-col gap-1.5">
+      <AnimatePresence initial={false}>
+        {documents.map((d) => (
+          <motion.li
+            key={d.name}
+            layout
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="flex items-baseline justify-between gap-3 text-[13px]"
+          >
+            <span className="min-w-0 truncate text-fg-muted">
+              <span className="font-mono text-fg">{d.name}</span>
+              <span className="ml-2 text-fg-subtle">
+                {d.kind === "pdf" ? `${d.pages} page${d.pages === 1 ? "" : "s"}` : d.kind.toUpperCase()}, {d.chars.toLocaleString("en-IN")} characters
+              </span>
+            </span>
+            <span className="shrink-0 font-mono text-xs tabular text-fg-faint">{seconds(d.at)}</span>
+          </motion.li>
+        ))}
+      </AnimatePresence>
+      {Array.from({ length: pending }, (_, i) => (
+        <li key={`pending-${i}`} aria-hidden>
+          <div className="skeleton h-3.5" style={{ width: `${[64, 48, 56][i % 3]}%` }} />
+        </li>
+      ))}
     </ul>
   );
 }

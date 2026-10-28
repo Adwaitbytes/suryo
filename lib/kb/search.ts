@@ -17,7 +17,15 @@ export async function searchKnowledge(
   query: string,
   limit = 4,
 ): Promise<{ hits: KnowledgeHit[]; confidence: number }> {
-  const vector = `[${(await embedQuery(query)).join(",")}]`;
+  let embedding: number[];
+  try {
+    embedding = await embedQuery(query);
+  } catch (err) {
+    // If every embedding key is out of quota the agent still answers from keyword search.
+    console.error("[searchKnowledge] embedding unavailable, using lexical search", err instanceof Error ? err.message : err);
+    return lexicalSearch(businessId, query, limit);
+  }
+  const vector = `[${embedding.join(",")}]`;
   const rows = await db.execute<{
     id: string;
     title: string;
@@ -52,7 +60,8 @@ export async function searchKnowledge(
     id: r.id,
     title: r.title,
     content: r.content,
-    url: r.source_url,
+    // Uploaded documents are stored as doc:// sources; only web pages are linkable.
+    url: r.source_url && /^https?:\/\//i.test(r.source_url) ? r.source_url : null,
     score: Number(Number(r.similarity).toFixed(3)),
   }));
   const confidence = hits.reduce((max, h) => Math.max(max, h.score), 0);
@@ -64,4 +73,21 @@ export const MIN_CONFIDENCE = 0.62;
 
 export function toSourceRef(hit: KnowledgeHit): SourceRef {
   return { id: hit.id, title: hit.title, url: hit.url, score: hit.score };
+}
+
+/** Keyword only fallback. Confidence is scaled so a strong multi term match clears MIN_CONFIDENCE. */
+async function lexicalSearch(businessId: string, query: string, limit: number): Promise<{ hits: KnowledgeHit[]; confidence: number }> {
+  const rows = await db.execute<{ id: string; title: string; content: string; source_url: string | null; rank: number }>(sql`
+    select id, title, content, source_url, ts_rank_cd(tsv, q) as rank
+    from kb_chunks, websearch_to_tsquery('simple', ${query.replace(/[^\p{L}\p{N}\s]/gu, " ")}) q
+    where business_id = ${businessId} and tsv @@ q
+    order by rank desc limit ${limit}`);
+  const hits = rows.rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    content: r.content,
+    url: r.source_url && /^https?:\/\//i.test(r.source_url) ? r.source_url : null,
+    score: Number(Math.min(0.9, 0.55 + Number(r.rank)).toFixed(3)),
+  }));
+  return { hits, confidence: hits[0]?.score ?? 0 };
 }
