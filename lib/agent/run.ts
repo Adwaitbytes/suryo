@@ -14,6 +14,12 @@ import { MIN_CONFIDENCE, searchKnowledge } from "@/lib/kb/search";
 
 type Bundle = NonNullable<BusinessBundle>;
 
+const LANGUAGE_HINT = {
+  en: "The latest customer message is in English. Reply in English.",
+  hi: "The latest customer message is in Hindi (Devanagari). Reply in natural Hindi written in Devanagari script.",
+  hinglish: "The latest customer message is in Hinglish. Reply in natural Hinglish written in Roman letters.",
+} as const;
+
 export async function startConversation(bundle: Bundle, channel: Channel, isEval = false) {
   const [conversation] = await db
     .insert(schema.conversations)
@@ -217,7 +223,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
 
   const result = streamText({
     model: fastModel(),
-    system: buildSystemPrompt(bundle, channel, returning ? { name: returning.name, lastContact: null } : undefined),
+    system: `${buildSystemPrompt(bundle, channel, returning ? { name: returning.name, lastContact: null } : undefined)}\n${LANGUAGE_HINT[quick.language]}`,
     messages: [...history, ...prelude],
     tools,
     stopWhen: stepCountIs(6),
