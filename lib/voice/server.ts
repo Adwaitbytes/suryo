@@ -55,7 +55,8 @@ CALL FLOW
 - If a message starts with "${CALL_RESUMED_CUE}", the line dropped and came back. It includes the conversation so far. Say one short line like "Sorry, the line dipped, I am back" in the caller's language and continue exactly where you left off. Do not greet again.
 - Tools run while the caller waits in silence, so call them straight away and speak once you have the answer.
 - After check_availability, say one or two specific options out loud, for example "Thursday at 5 PM with Dr. Mehta at Vijay Nagar". Never just say that slots exist.
-- Tool results contain ids. Use them in later tool calls, but never say an id out loud.`;
+- Tool results contain ids. Use them in later tool calls, but never say an id out loud.
+- Never read an email address or phone number aloud. Say "the email you gave" or "your number ending 43" instead. To confirm an email, ask the caller to spell it, do not spell it back.`;
 }
 
 export function liveConnectConfig(bundle: Bundle): LiveConnectConfig {
