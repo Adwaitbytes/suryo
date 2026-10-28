@@ -227,10 +227,13 @@ export class VoiceCall {
   async end(): Promise<void> {
     const phase = this.state.phase;
     if (phase !== "live" && phase !== "human" && phase !== "connecting") return;
+    const unfinished = this.flushTurn();
     this.closeSession();
     this.stopPolling();
     await this.teardownAudio();
     this.set({ phase: "ended", endedAt: Date.now(), activity: "listening" });
+    // The summary is written at end, so the last exchange has to land first.
+    if (unfinished) await unfinished;
     await this.endConversation("completed");
   }
 
@@ -238,6 +241,8 @@ export class VoiceCall {
   abandon(): void {
     const { phase, conversationId } = this.state;
     if (!conversationId || (phase !== "live" && phase !== "human" && phase !== "connecting")) return;
+    const turn = this.takeTurn();
+    if (turn) navigator.sendBeacon("/api/voice/turn", new Blob([JSON.stringify(turn)], { type: "application/json" }));
     const payload = new Blob([JSON.stringify({ reason: "abandoned" })], { type: "application/json" });
     navigator.sendBeacon(`/api/conversations/${conversationId}/end`, payload);
     this.closeSession();
@@ -477,6 +482,19 @@ export class VoiceCall {
   }
 
   private onTurnComplete(): void {
+    const payload = this.takeTurn();
+    if (!this.player?.playing && this.state.activity !== "listening") this.set({ activity: "listening" });
+    if (payload) void this.persistTurn(payload);
+  }
+
+  /** Persists whatever was said in a turn that will never see turnComplete (end call, takeover). */
+  private flushTurn(): Promise<void> | null {
+    const payload = this.takeTurn();
+    return payload ? this.persistTurn(payload) : null;
+  }
+
+  /** Moves the buffered transcripts of the current turn into a payload and resets for the next turn. */
+  private takeTurn(): VoiceTurnRequest | null {
     const customerText = this.customerBuffer.trim();
     const agentText = this.agentBuffer.trim();
     const payload: VoiceTurnRequest = {
@@ -486,7 +504,6 @@ export class VoiceCall {
       latencyMs: this.turnLatency,
       interrupted: this.turnInterrupted,
     };
-    const captions = this.state.captions.map((c) => (c.final ? c : { ...c, final: true }));
     this.customerBuffer = this.nextCustomerBuffer;
     this.nextCustomerBuffer = "";
     this.agentBuffer = "";
@@ -495,9 +512,8 @@ export class VoiceCall {
     this.turnLatency = null;
     this.agentCaptionId = null;
     if (!this.customerBuffer) this.customerCaptionId = null;
-    this.set({ captions });
-    if (!this.player?.playing && this.state.activity !== "listening") this.set({ activity: "listening" });
-    if (payload.conversationId && (customerText || agentText)) void this.persistTurn(payload);
+    this.set({ captions: this.state.captions.map((c) => (c.final ? c : { ...c, final: true })) });
+    return payload.conversationId && (customerText || agentText) ? payload : null;
   }
 
   private recordLatency(ms: number): void {
@@ -639,6 +655,7 @@ export class VoiceCall {
   }
 
   private enterHumanMode(): void {
+    void this.flushTurn();
     this.closeSession();
     void this.teardownAudio();
     this.set({ phase: "human", activity: "listening", muted: false });

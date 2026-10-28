@@ -8,13 +8,8 @@ import type { CallAction } from "@/lib/voice/call";
 import { cn } from "@/lib/utils";
 
 const TZ = "Asia/Kolkata";
-const dayTime = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, weekday: "short", hour: "numeric", minute: "2-digit", hour12: true });
 const dayDate = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
 const timeOnly = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true });
-
-function when(iso: string): string {
-  return dayTime.format(new Date(iso)).replace(/\b(am|pm)\b/i, (m) => m.toUpperCase());
-}
 
 /** Shows the most recent tool activity as cards that rise in as the agent works. */
 export function ActionCards({ actions, reducedMotion }: { actions: CallAction[]; reducedMotion: boolean }) {
@@ -83,8 +78,8 @@ function CardView({ card }: { card: Card }) {
             <ul className="mt-2 grid grid-cols-3 gap-1.5">
               {slots.map((slot) => (
                 <li key={slot.slotId} className="min-w-0 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-center text-[13px] leading-tight">
-                  <span className="tabular text-fg">{when(slot.startsAt)}</span>
-                  {sameStaff ? null : <span className="block truncate text-2xs text-fg-subtle">{slot.staff}</span>}
+                  <span className="tabular text-fg">{timeOnly.format(new Date(slot.startsAt)).toUpperCase()}</span>
+                  <span className="block truncate text-2xs text-fg-subtle">{sameStaff ? dayDate.format(new Date(slot.startsAt)) : slot.staff}</span>
                 </li>
               ))}
             </ul>
@@ -148,7 +143,7 @@ const toneClass = {
 
 function Shell({ icon, tone, title, children }: { icon: ReactNode; tone: keyof typeof toneClass; title?: string; children?: ReactNode }) {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-border bg-surface/90 px-3.5 py-3 shadow-md">
+    <div className={cn("flex gap-3 rounded-2xl border border-border bg-surface/90 px-3.5 py-3 shadow-md", title ? "items-start" : "items-center")}>
       <span className={cn("mt-px grid size-7 shrink-0 place-items-center rounded-lg", toneClass[tone])}>{icon}</span>
       <div className="min-w-0 flex-1 text-sm leading-snug">
         {title ? <p className="font-medium text-fg">{title}</p> : null}

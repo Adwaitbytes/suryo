@@ -205,21 +205,42 @@ function PreCall({
           Ask about treatments and prices, or book a time that suits you. {spoken}
         </p>
       )}
-      <button
-        type="button"
-        onClick={onStart}
-        disabled={busy}
-        className="group inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-accent text-[16px] font-medium text-accent-fg shadow-[0_1px_0_rgb(255_255_255/0.3)_inset,0_10px_30px_-10px_rgb(255_122_48/0.6)] transition-[background-color,transform] duration-150 ease-out hover:bg-accent-strong active:scale-[0.985] disabled:opacity-70"
-      >
-        {error ? <RotateCcw className="size-[18px]" /> : <Phone className="size-[18px] transition-transform duration-200 group-hover:-rotate-12" />}
-        {busy ? "Allow the microphone to continue" : error ? "Try the call again" : "Start call"}
-      </button>
-      <p className="text-center text-[13px] text-fg-subtle">
-        Prefer to type?{" "}
-        <Link href={chatHref} className="rounded text-fg-muted underline decoration-border-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-fg-muted">
-          Continue in chat
-        </Link>
-      </p>
+      {error?.kind === "mic-denied" ? (
+        <>
+          <Link
+            href={chatHref}
+            className="inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-accent text-[16px] font-medium text-accent-fg transition-[background-color,transform] duration-150 ease-out hover:bg-accent-strong active:scale-[0.985]"
+          >
+            <MessageSquare className="size-[18px]" />
+            Continue in chat
+          </Link>
+          <button
+            type="button"
+            onClick={onStart}
+            className="mx-auto inline-flex items-center gap-2 rounded text-[13px] text-fg-muted underline decoration-border-strong underline-offset-4 transition-colors hover:text-fg"
+          >
+            I have allowed the microphone, try again
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={busy}
+            className="group inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-accent text-[16px] font-medium text-accent-fg shadow-[0_1px_0_rgb(255_255_255/0.3)_inset,0_10px_30px_-10px_rgb(255_122_48/0.6)] transition-[background-color,transform] duration-150 ease-out hover:bg-accent-strong active:scale-[0.985] disabled:opacity-70"
+          >
+            {error ? <RotateCcw className="size-[18px]" /> : <Phone className="size-[18px] transition-transform duration-200 group-hover:-rotate-12" />}
+            {busy ? "Allow the microphone to continue" : error ? "Try the call again" : "Start call"}
+          </button>
+          <p className="text-center text-[13px] text-fg-subtle">
+            Prefer to type?{" "}
+            <Link href={chatHref} className="rounded text-fg-muted underline decoration-border-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-fg-muted">
+              Continue in chat
+            </Link>
+          </p>
+        </>
+      )}
     </div>
   );
 }

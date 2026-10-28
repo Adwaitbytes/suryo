@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       .values({
         conversationId,
         role: "agent",
-        content: agentText.replace(/—/g, ", "),
+        content: agentText.replace(/\u2014/g, ", "),
         meta: {
           latencyMs: latencyMs ?? undefined,
           language: quick?.language,
