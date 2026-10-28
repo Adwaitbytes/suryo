@@ -6,13 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:push": "drizzle-kit push --force",
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "chat": "tsx --env-file=.env.local scripts/chat.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.89",
     "@ai-sdk/google": "^4.0.106",
     "@google/genai": "^2.31.0",
     "@neondatabase/serverless": "^1.2.0",
-    "@openrouter/ai-sdk-provider": "^3.1.0",
     "ai": "^7.0.154",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
@@ -45,5 +49,6 @@
     "tsx": "^4.23.15",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@12.8.1"
+  "packageManager": "pnpm@12.8.1",
+  "type": "module"
 }
