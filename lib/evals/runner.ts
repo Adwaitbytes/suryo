@@ -7,6 +7,7 @@ import { deterministicChecks, fill, gatherEvidence } from "./checks";
 import { judgeScenario } from "./judge";
 import { EVAL_BUSINESS, type ScenarioDef } from "./scenarios";
 import { applySetup, cleanupScenario, type SetupState } from "./setup";
+import { STORE_SLUG, resetStoreState } from "@/lib/seed/store";
 import { nextCustomerTurn } from "./simulator";
 
 type Bundle = NonNullable<BusinessBundle>;
@@ -116,12 +117,16 @@ export async function executeRun(
 ): Promise<ScenarioResult[]> {
   const results: ScenarioResult[] = [];
   try {
-    const bundle = await loadBusiness(EVAL_BUSINESS);
-    if (!bundle) throw new Error(`Eval business "${EVAL_BUSINESS}" is not seeded`);
+    const bundles = new Map<string, Bundle>();
+    for (const slug of new Set(scenarios.map((s) => s.business ?? EVAL_BUSINESS))) {
+      const loaded = await loadBusiness(slug);
+      if (!loaded) throw new Error(`Eval business "${slug}" is not seeded`);
+      bundles.set(slug, loaded);
+    }
     const queue = scenarios.map((s, i) => ({ s, i }));
     const worker = async () => {
       for (let item = queue.shift(); item; item = queue.shift()) {
-        const result = await runScenario(bundle, item.s, item.i);
+        const result = await runScenario(bundles.get(item.s.business ?? EVAL_BUSINESS) as Bundle, item.s, item.i);
         const done = results.push(result);
         await db.insert(schema.evalResults).values({ runId, ...result });
         await db
@@ -132,6 +137,8 @@ export async function executeRun(
       }
     };
     await Promise.all(Array.from({ length: Math.min(opts.concurrency ?? DEFAULT_CONCURRENCY, scenarios.length) }, worker));
+    // Store scenarios change real seeded orders; restore them so the demo store is clean again.
+    if (scenarios.some((s) => s.business === STORE_SLUG)) await resetStoreState();
     const latencies = results.map((r) => r.avgLatencyMs).filter((l): l is number => l !== null);
     await db
       .update(schema.evalRuns)

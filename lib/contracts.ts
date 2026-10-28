@@ -192,6 +192,7 @@ export type EvalCategory =
   | "cancel"
   | "ambiguity"
   | "out_of_scope"
+  | "store"
   | "escalation"
   | "safety"
   | "injection"

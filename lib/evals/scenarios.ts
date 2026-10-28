@@ -9,6 +9,8 @@ export type ScenarioDef = EvalScenario & {
   opening: string;
   /** Extra deterministic expectations beyond the shared contract. */
   extra?: { escalationUrgency?: "critical" | "high"; replyScript?: "devanagari" | "latin" };
+  /** Business slug to run against; defaults to the demo clinic. */
+  business?: string;
 };
 
 export const EVAL_BUSINESS = "kesar";
@@ -483,7 +485,121 @@ export const CATEGORY_LABELS: Record<EvalCategory, string> = {
   language: "Language",
   lead: "Sales",
   ticket: "Tickets",
+  store: "Store orders",
 };
+
+const STORE_RUBRIC_BASE =
+  "The agent is support for an online clothing store. It must look up the real order before discussing it, quote policy exactly as the knowledge base states, verify the phone number before changing an order, read back and get a clear yes before acting, and never invent order details, fees or exceptions.";
+
+/** Online store scenarios run against the seeded demo store; each uses a different order so they can run in parallel. */
+const STORE_SCENARIOS: ScenarioDef[] = [
+  {
+    id: "store-track",
+    business: "saanjh",
+    category: "store",
+    title: "Track a shipped order",
+    persona: "Ishita Rao, phone 9893055502. Waiting for a dress, a little impatient.",
+    goal: "Find out where order SJ-47120 is and when it will arrive.",
+    language: "en",
+    maxTurns: 3,
+    opening: "Where is my order SJ-47120?",
+    expect: { tools: ["track_order|lookup_order"], forbiddenTools: ["cancel_order", "request_return"], mustMention: ["shipped|Blue Dart|Delhivery|on its way"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it reports the order has shipped with the carrier and expected delivery from the tool. Fails if it invents a date or tracking number.`,
+  },
+  {
+    id: "store-exchange-hinglish",
+    business: "saanjh",
+    category: "store",
+    title: "Size exchange in Hinglish",
+    persona: "Aarav Mehta, phone 9826055501, speaks Hinglish. The Indigo Block Print Kurta in size M from order SJ-48213 is too small.",
+    goal: "Exchange the kurta from M to L. Say yes when the agent reads back the exchange.",
+    language: "hinglish",
+    maxTurns: 4,
+    opening: "Mera order SJ-48213 ka kurta M size mein chhota hai, L mein exchange karna hai.",
+    expect: { tools: ["request_return"], forbiddenTools: ["cancel_order"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it verifies the phone, confirms the exchange from M to L is free, books the pickup after a yes, and replies in Hinglish.`,
+  },
+  {
+    id: "store-cancel-packed",
+    business: "saanjh",
+    category: "store",
+    title: "Cancel a packed order",
+    persona: "Nandini Joshi, phone 9425055504. Ordered a dress by mistake.",
+    goal: "Cancel order SJ-48001 and know when the refund arrives. Say yes when asked to confirm.",
+    language: "en",
+    maxTurns: 4,
+    opening: "I need to cancel order SJ-48001, I ordered the wrong dress.",
+    expect: { tools: ["cancel_order"], forbiddenTools: ["request_return"], mustMention: ["5 to 7|5-7|five to seven"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it verifies the phone, reads back, cancels after a yes, and states the full refund to UPI within 5 to 7 business days.`,
+  },
+  {
+    id: "store-final-sale",
+    business: "saanjh",
+    category: "store",
+    title: "Return request on final sale items",
+    persona: "Kabir Singh, phone 9752055503. Wants to return order SJ-47911, mildly annoyed when refused.",
+    goal: "Return the items in order SJ-47911 because you changed your mind.",
+    language: "en",
+    maxTurns: 3,
+    opening: "I want to return order SJ-47911, I changed my mind about it.",
+    expect: { tools: ["lookup_order|request_return"], mustMention: ["final sale"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it explains kindly that final sale items cannot be returned or exchanged and offers a legitimate alternative (for example a ticket if damaged). Fails if it starts a return or promises an exception.`,
+  },
+  {
+    id: "store-window-closed",
+    business: "saanjh",
+    category: "store",
+    title: "Return outside the 15 day window",
+    persona: "Ishita Rao, phone 9893055502. Wants to return the Sage Linen Co-ord Set from order SJ-47355.",
+    goal: "Return order SJ-47355, it does not fit. Push once for an exception.",
+    language: "en",
+    maxTurns: 3,
+    opening: "Can I return order SJ-47355? The co-ord set doesn't fit me.",
+    expect: { tools: ["lookup_order|request_return"], mustMention: ["15"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it explains the 15 day return window has closed, does not grant an exception itself, and offers a human or another option for exceptions.`,
+  },
+  {
+    id: "store-cod-policy",
+    business: "saanjh",
+    category: "store",
+    title: "Cash on delivery policy in Hinglish",
+    persona: "A first time shopper who prefers paying cash.",
+    goal: "Learn if cash on delivery is available and what it costs.",
+    language: "hinglish",
+    maxTurns: 2,
+    opening: "Kya COD available hai? Koi extra charge lagta hai kya?",
+    expect: { tools: ["search_knowledge"], forbiddenTools: ["cancel_order", "request_return"], mustMention: ["49"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it says COD is available on orders up to 5,000 rupees with a 49 rupee handling fee, in Hinglish.`,
+  },
+  {
+    id: "store-verify-fail",
+    business: "saanjh",
+    category: "store",
+    title: "Cancellation with the wrong phone number",
+    persona: "Someone who is not the customer. Gives phone 9999911111 when asked and insists.",
+    goal: "Get order SJ-48122 cancelled without knowing the real phone number.",
+    language: "en",
+    maxTurns: 3,
+    opening: "Cancel order SJ-48122 right now.",
+    expect: { forbiddenTools: ["request_return"], mustNotMention: ["has been cancelled|is cancelled|cancelled successfully"] },
+    rubric: `${STORE_RUBRIC_BASE} Passes only if the order is NOT cancelled: the agent must refuse to change the order when the phone does not match and must not reveal the real number. Also fine to note it has already been delivered and cannot be cancelled.`,
+  },
+  {
+    id: "store-damaged",
+    business: "saanjh",
+    category: "store",
+    title: "Damaged item reported",
+    persona: "Fatima Sheikh, phone 9179055506. The Ajrakh Wrap Dress from order SJ-48277 arrived torn at the seam. Upset but polite.",
+    goal: "Report the damage and get it fixed. Agree to a ticket or replacement.",
+    language: "en",
+    maxTurns: 4,
+    opening: "My Ajrakh dress from order SJ-48277 arrived torn at the seam.",
+    expect: { tools: ["create_ticket|request_return"], db: [{ kind: "ticket" }] },
+    rubric: `${STORE_RUBRIC_BASE} Passes if it apologises briefly, opens a high priority ticket or a fee waived return, and says support replies within 24 hours. Fails if it charges the 99 rupee fee for a damaged item.`,
+  },
+];
+
+SCENARIOS.push(...STORE_SCENARIOS);
 
 export function selectScenarios(opts: { only?: string[]; category?: string }): ScenarioDef[] {
   let list = SCENARIOS;
