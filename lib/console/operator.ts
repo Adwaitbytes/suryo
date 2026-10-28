@@ -1,7 +1,7 @@
 import { generateText, Output } from "ai";
 import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import { classifierModel } from "@/lib/ai/models";
+import { CLASSIFIER_OPTIONS, classifierModel } from "@/lib/ai/models";
 import { loadBusiness } from "@/lib/agent/business";
 import { transcriptText } from "@/lib/agent/summary";
 import { runAfter } from "@/lib/background";
@@ -169,6 +169,7 @@ export async function suggestReplies(conversationId: string, operator: string): 
     model: classifierModel(),
     output: Output.object({ schema: draftsSchema }),
     abortSignal: AbortSignal.timeout(15_000),
+    providerOptions: CLASSIFIER_OPTIONS,
     system: [
       `You draft replies for ${operatorIntro(operator)} at ${bundle.business.name}, who has taken over a live customer conversation from the AI assistant.`,
       "Write 2 or 3 distinct next replies the staff member could send right now. Each is one or two short sentences, warm and specific, and moves the issue forward.",

@@ -1,6 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { classifierModel } from "@/lib/ai/models";
+import { CLASSIFIER_OPTIONS, classifierModel } from "@/lib/ai/models";
 import type { Language, TurnAnalysis } from "@/lib/contracts";
 
 const analysisSchema = z.object({
@@ -41,7 +41,7 @@ export async function analyzeTurn(text: string, previous: string[]): Promise<Tur
     const { output } = await generateText({
       model: classifierModel(),
       output: Output.object({ schema: analysisSchema }),
-      providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
+      providerOptions: CLASSIFIER_OPTIONS,
       abortSignal: AbortSignal.timeout(4000),
       system:
         "Classify the latest customer message to a clinic front desk. language: en, hi (Devanagari) or hinglish (Hindi in Roman letters). emergency only for urgent physical danger. wantsHuman only if they ask for a person.",
