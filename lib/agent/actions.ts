@@ -62,6 +62,13 @@ export const actionSchemas = {
   }),
   book_appointment: z.object({
     slotId: z.string().uuid().describe("slotId returned by check_availability"),
+    expectedStartsAt: z
+      .string()
+      .describe("startsAt of that same slot exactly as returned by check_availability; the booking is refused if it does not match"),
+    additionalBooking: z
+      .boolean()
+      .optional()
+      .describe("Only true if the customer explicitly wants a second appointment for a service they already have booked"),
     service: z.string(),
     customerName: z.string().min(1),
     phone: z.string().min(6),
@@ -209,8 +216,8 @@ const handlers: Handlers = {
         covered,
         confidence,
         guidance: covered
-          ? "Answer only from these passages."
-          : "The knowledge base does not cover this. Say so honestly and offer a callback or a human.",
+          ? "Answer only from these passages. Do not mention searching or any knowledge base."
+          : "No information on this. Tell the customer you do not have that information (never mention a knowledge base or search) and offer a callback or a human.",
         passages: covered ? hits.map((h) => ({ title: h.title, text: h.content })) : [],
       },
       sources: covered ? hits.map(toSourceRef) : [],
@@ -335,7 +342,10 @@ const handlers: Handlers = {
         name: customer.name,
         email: customer.email,
         hasEmail: Boolean(customer.email),
-        upcoming: upcoming.map((u) => ({ ...u, when: formatSlot(u.startsAt) })),
+        upcoming: upcoming.map((u) => {
+          const hoursUntil = Math.round((u.startsAt.getTime() - Date.now()) / 360_000) / 10;
+          return { ...u, when: formatSlot(u.startsAt), hoursUntil, freeCancellation: hoursUntil >= 4 };
+        }),
         lastContact: lastConversation?.summary?.headline ?? null,
       },
     };
@@ -356,6 +366,31 @@ const handlers: Handlers = {
       email: input.email,
     });
     await linkCustomer(ctx, customer.id);
+    const target = await db.query.slots.findFirst({
+      where: and(eq(schema.slots.id, input.slotId), eq(schema.slots.businessId, bundle.business.id)),
+    });
+    if (!target) throw new ActionError("unknown_slot: use a slotId from check_availability");
+    const expected = new Date(input.expectedStartsAt);
+    if (Number.isNaN(expected.getTime()) || Math.abs(expected.getTime() - target.startsAt.getTime()) > 60_000) {
+      throw new ActionError(
+        `slot_mismatch: slotId ${input.slotId} is ${formatSlot(target.startsAt)}, not the time you confirmed. Use the slotId that belongs to the confirmed time.`,
+      );
+    }
+    if (!input.additionalBooking && service) {
+      const existing = await db.query.appointments.findFirst({
+        where: and(
+          eq(schema.appointments.customerId, customer.id),
+          eq(schema.appointments.serviceId, service.id),
+          eq(schema.appointments.status, "confirmed"),
+          gte(schema.appointments.startsAt, new Date()),
+        ),
+      });
+      if (existing) {
+        throw new ActionError(
+          `existing_appointment: this customer already has ${service.name} on ${formatSlot(existing.startsAt)} [appointmentId ${existing.id}]. If they want to move it, use reschedule_appointment. Only book again with additionalBooking true if they clearly want a second one.`,
+        );
+      }
+    }
     const booked = await db.transaction(async (tx) => {
       // Conditional update is the lock: only one transaction can flip open to booked.
       const [slot] = await tx
@@ -477,10 +512,12 @@ const handlers: Handlers = {
       },
     ];
     const customer = await db.query.customers.findFirst({ where: eq(schema.customers.id, result.old.customerId) });
-    if (customer?.email) await dispatchEmail(ctx, cards, result.next.id, customer.email, "REQUEST");
+    const confirmationEmail = customer?.email
+      ? await dispatchEmail(ctx, cards, result.next.id, customer.email, "REQUEST")
+      : "no_email_on_file";
     return {
       ok: true,
-      data: { appointmentId: result.next.id, when: formatSlot(result.slot.startsAt), staff: staffName, location: location?.name ?? null },
+      data: { appointmentId: result.next.id, when: formatSlot(result.slot.startsAt), staff: staffName, location: location?.name ?? null, confirmationEmail },
       cards,
     };
   },
@@ -736,6 +773,8 @@ async function dispatchEmail(
   return card.kind === "email" ? card.status : "unknown";
 }
 
+const RESERVED_EMAIL = /@([a-z0-9-]+\.)*(example\.(com|net|org)|[a-z0-9-]+\.(test|example|invalid|localhost))$/i;
+
 async function sendAppointmentEmail(
   ctx: ActionContext,
   appointmentId: string,
@@ -769,7 +808,12 @@ async function sendAppointmentEmail(
   const note = cancelled
     ? "Your appointment has been cancelled. Reply to this email or call us any time to book again."
     : bundle.business.profile.bookingRules[1] ?? "Reply to this email to reschedule.";
-  const result = await sendEmail({
+  const conversation = await db.query.conversations.findFirst({ where: eq(schema.conversations.id, ctx.conversationId) });
+  // Evaluation traffic and reserved test domains never reach a real inbox.
+  const suppressed = conversation?.isEval || RESERVED_EMAIL.test(to);
+  const result = suppressed
+    ? ({ status: "skipped", reason: conversation?.isEval ? "Evaluation conversation" : "Reserved test domain" } as const)
+    : await sendEmail({
     to,
     subject,
     fromName: bundle.business.name,

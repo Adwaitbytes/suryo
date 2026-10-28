@@ -14,6 +14,9 @@ import { MIN_CONFIDENCE, searchKnowledge, toSourceRef } from "@/lib/kb/search";
 
 type Bundle = NonNullable<BusinessBundle>;
 
+/** Pre tool narration is short; anything longer is treated as the real reply and streamed. */
+const HOLD_CHARS = 160;
+
 const LANGUAGE_HINT = {
   en: "The latest customer message is in English. Reply in English.",
   hi: "The latest customer message is in Hindi (Devanagari). Reply in natural Hindi written in Devanagari script.",
@@ -80,7 +83,8 @@ function traceFromSteps(steps: Steps): ModelMessage[] {
     const content: Array<
       { type: "text"; text: string } | { type: "tool-call"; toolCallId: string; toolName: string; input: unknown }
     > = [];
-    if (step.text.trim()) content.push({ type: "text", text: step.text });
+    // Planning text before tool calls is dropped so the model does not learn to narrate.
+    if (step.text.trim() && step.toolCalls.length === 0) content.push({ type: "text", text: step.text });
     for (const call of step.toolCalls) content.push({ type: "tool-call", toolCallId: call.toolCallId, toolName: call.toolName, input: call.input });
     if (content.length) out.push({ role: "assistant", content });
     if (step.toolResults.length) {
@@ -235,18 +239,37 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
   let reply = "";
   let firstTokenMs: number | null = null;
   let failed = false;
+  // Text that precedes a tool call is the model planning out loud ("let me check"), not an
+  // answer. Each step's opening text is held back until it is long enough to clearly be a
+  // reply, or the step ends without a tool call; if a tool call starts first it is dropped.
+  let held = "";
+  let streaming = false;
+  const release = function* (): Generator<StreamEvent> {
+    if (!held) return;
+    if (firstTokenMs === null) firstTokenMs = Date.now() - started;
+    const delta = reply && !/\s$/.test(reply) ? ` ${held}` : held;
+    reply += delta;
+    held = "";
+    streaming = true;
+    yield { type: "text", delta };
+  };
   try {
     for await (const part of result.fullStream) {
       while (queue.length) yield queue.shift() as StreamEvent;
       if (part.type === "text-delta") {
-        if (firstTokenMs === null) firstTokenMs = Date.now() - started;
         const delta = part.text.replace(/\u2014/g, ", ");
-        reply += delta;
-        yield { type: "text", delta };
-      } else if (part.type === "text-end" && reply && !/\s$/.test(reply)) {
-        // Separate text blocks from different steps.
-        reply += " ";
-        yield { type: "text", delta: " " };
+        if (streaming) {
+          reply += delta;
+          yield { type: "text", delta };
+        } else {
+          held += delta;
+          if (held.length > HOLD_CHARS) yield* release();
+        }
+      } else if (part.type === "tool-input-start" || part.type === "tool-call") {
+        held = "";
+      } else if (part.type === "finish-step") {
+        yield* release();
+        streaming = false;
       } else if (part.type === "error") {
         failed = true;
         console.error("[runTurn] stream error", part.error);
@@ -256,6 +279,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<StreamEvent> {
     failed = true;
     console.error("[runTurn]", err);
   }
+  yield* release();
   while (queue.length) yield queue.shift() as StreamEvent;
 
   let trace: ModelMessage[] | undefined;

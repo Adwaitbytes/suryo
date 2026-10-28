@@ -304,9 +304,14 @@ export const clinicKnowledge: Array<{ title: string; content: string }> = [
       "Whitening is suitable for adults with healthy gums. A cleaning is recommended before whitening for best results. For 48 hours after whitening avoid tea, coffee, red wine, cola and smoking. Results typically last 12 to 18 months.",
   },
   {
-    title: "Laser hair reduction: before and after",
+    title: "Laser hair reduction: preparation before a session",
     content:
-      "Before laser: shave the area a day before, do not wax or thread for 4 weeks, avoid sun exposure and self tanning for 2 weeks. After laser: mild redness for a few hours is normal, use sunscreen and avoid hot showers, gym and swimming for 24 hours. Sessions are 4 weeks apart.",
+      "Before a laser hair reduction session: shave the area one day before. Do not wax, thread or pluck for 4 weeks before. Avoid sun exposure and self tanning for 2 weeks before the session. Come with clean skin, no creams or deodorant on the area.",
+  },
+  {
+    title: "Laser hair reduction: aftercare",
+    content:
+      "After a laser hair reduction session: mild redness for a few hours is normal. Apply sunscreen on the treated area. Avoid hot showers, gym, sauna and swimming for 24 hours. Sessions are spaced 4 weeks apart, usually 6 to 8 sessions in total.",
   },
   {
     title: "Chemical peel and HydraFacial aftercare",

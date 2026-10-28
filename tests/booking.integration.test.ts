@@ -28,6 +28,7 @@ describe.skipIf(!process.env.DATABASE_URL)("transactional booking", () => {
     const book = (conversationId: string, n: number) =>
       executeAction({ bundle, conversationId, channel: "chat" }, "book_appointment", {
         slotId: slot.id,
+        expectedStartsAt: slot.startsAt.toISOString(),
         service: "Teeth cleaning and polishing",
         customerName: `Race Test ${n}`,
         phone: `90000000${n}${n}`,
