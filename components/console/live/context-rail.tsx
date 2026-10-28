@@ -21,14 +21,14 @@ export function ContextRail({ detail, now }: { detail: ConversationDetail; now: 
         <section className="border-b border-danger/30 bg-danger-soft px-5 py-4">
           <div className="flex items-center gap-2">
             <CircleAlert aria-hidden className="size-4 text-danger" />
-            <span className="text-[13px] font-medium text-danger">Escalated</span>
+            <span className="text-[13px] font-medium text-danger">{openEscalation.status === "claimed" ? `Claimed by ${openEscalation.claimedBy?.split(" (")[0] ?? "staff"}` : "Escalated, unclaimed"}</span>
             <UrgencyChip urgency={openEscalation.urgency} solid />
-            <span className="tabular ml-auto font-mono text-2xs text-danger">{elapsed(openEscalation.createdAt, now)}</span>
+            <span className="tabular ml-auto whitespace-nowrap font-mono text-2xs text-danger">{elapsed(openEscalation.createdAt, now)}</span>
           </div>
           <div className="mt-2 text-[13px] text-fg">{openEscalation.reason}</div>
           <div className="mt-1 font-mono text-2xs text-fg-subtle">
             trigger {TRIGGER_LABELS[openEscalation.trigger]?.toLowerCase() ?? openEscalation.trigger}
-            {openEscalation.claimedBy ? ` · claimed by ${openEscalation.claimedBy}` : " · unclaimed"}
+
           </div>
         </section>
       ) : null}

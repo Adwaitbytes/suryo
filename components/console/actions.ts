@@ -1,21 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { errorMessage, sendJson } from "./api";
 import { useConsole } from "./provider";
 
 type Theme = "dark" | "light";
 const THEME_KEY = "suryo-theme";
 
+function subscribeTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
+
+const readTheme = (): Theme => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
+
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  useEffect(() => {
-    const current = document.documentElement.dataset.theme === "light" ? "light" : "dark";
-    setTheme(current);
-    const observer = new MutationObserver(() => setTheme(document.documentElement.dataset.theme === "light" ? "light" : "dark"));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => observer.disconnect();
-  }, []);
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "dark" as Theme);
   const toggle = useCallback(() => {
     const next: Theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = next;

@@ -22,6 +22,7 @@ type Command = {
   run: () => void;
 };
 
+/** Remounted with a fresh key each time it opens, so the query and selection always start clean. */
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const { businesses, business, selectBusiness } = useConsole();
@@ -62,15 +63,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     if (!q) return commands;
     return commands.filter((c) => `${c.group} ${c.label} ${c.hint ?? ""}`.toLowerCase().includes(q));
   }, [commands, query]);
-
-  useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setIndex(0);
-    setArmed(null);
-    const id = window.requestAnimationFrame(() => input.current?.focus());
-    return () => window.cancelAnimationFrame(id);
-  }, [open]);
 
   useEffect(() => {
     list.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
@@ -130,6 +122,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               <Search aria-hidden className="size-4 text-fg-subtle" />
               <input
                 ref={input}
+                autoFocus
+                style={{ outline: "none" }}
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);

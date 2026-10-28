@@ -113,6 +113,21 @@ export async function resolveEscalation(escalationId: string, operator: string) 
   return resolveConversation(escalation.conversationId, operator);
 }
 
+/** Claims through a takeover while the customer is still there; otherwise just records the owner. */
+export async function claimEscalation(escalationId: string, operator: string) {
+  const escalation = await db.query.escalations.findFirst({ where: eq(e.id, escalationId) });
+  if (!escalation) throw new OperatorError(404, "Escalation not found");
+  if (escalation.status === "resolved") throw new OperatorError(409, "This escalation is already resolved");
+  const conversation = await loadLiveConversation(escalation.conversationId);
+  if (conversation.status !== "resolved" && conversation.status !== "abandoned") {
+    await takeOver(conversation.id, operator);
+    return { conversationId: conversation.id, tookOver: true };
+  }
+  await db.update(e).set({ status: "claimed", claimedBy: operator }).where(eq(e.id, escalationId));
+  await emit("escalation.updated", { businessId: conversation.businessId, conversationId: conversation.id }, { escalationId, status: "claimed", claimedBy: operator });
+  return { conversationId: conversation.id, tookOver: false };
+}
+
 function resolveEscalations(conversationId: string) {
   return db
     .update(e)
@@ -131,7 +146,7 @@ const draftsSchema = z.object({
 
 const cleanDraft = (s: string) =>
   s
-    .replace(/\s*[—–]\s*/g, ", ")
+    .replace(/\s*[\u2014\u2013]\s*/g, ", ")
     .replace(/^["']|["']$/g, "")
     .replace(/\s+/g, " ")
     .trim();

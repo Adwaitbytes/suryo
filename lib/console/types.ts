@@ -15,7 +15,7 @@ import type {
 export type Urgency = "low" | "medium" | "high" | "critical";
 export type EscalationStatus = "open" | "claimed" | "resolved";
 
-export type BusinessOption = { id: string; slug: string; name: string; kind: "clinic" | "generic"; isDemo: boolean };
+export type BusinessOption = { id: string; slug: string; name: string; kind: "clinic" | "generic"; isDemo: boolean; agentName: string };
 
 export type LiveConversation = {
   id: string;

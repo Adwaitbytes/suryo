@@ -39,10 +39,10 @@ const URGENCY_RANK: Record<Urgency, number> = { critical: 0, high: 1, medium: 2,
 
 export async function listBusinesses(): Promise<BusinessOption[]> {
   const rows = await db
-    .select({ id: schema.businesses.id, slug: schema.businesses.slug, name: schema.businesses.name, kind: schema.businesses.kind, isDemo: schema.businesses.isDemo })
+    .select({ id: schema.businesses.id, slug: schema.businesses.slug, name: schema.businesses.name, kind: schema.businesses.kind, isDemo: schema.businesses.isDemo, persona: schema.businesses.persona })
     .from(schema.businesses)
     .orderBy(desc(schema.businesses.isDemo), asc(schema.businesses.createdAt));
-  return rows;
+  return rows.map(({ persona, ...b }) => ({ ...b, agentName: persona.agentName }));
 }
 
 /** Accepts either a business id or slug. */
@@ -50,9 +50,11 @@ export async function resolveBusiness(idOrSlug: string): Promise<BusinessOption 
   const isUuid = /^[0-9a-f-]{36}$/i.test(idOrSlug);
   const row = await db.query.businesses.findFirst({
     where: isUuid ? eq(schema.businesses.id, idOrSlug) : eq(schema.businesses.slug, idOrSlug),
-    columns: { id: true, slug: true, name: true, kind: true, isDemo: true },
+    columns: { id: true, slug: true, name: true, kind: true, isDemo: true, persona: true },
   });
-  return row ?? null;
+  if (!row) return null;
+  const { persona, ...business } = row;
+  return { ...business, agentName: persona.agentName };
 }
 
 /* ------------------------------------------------------------------ */
@@ -138,7 +140,10 @@ export async function getConversationDetail(conversationId: string): Promise<Con
       ? { id: customer.id, name: customer.name, phone: maskPhone(customer.phone), email: maskEmailAddress(customer.email), language: customer.language }
       : null,
     messages: messages.map((msg) => {
-      const { trace: _trace, memory: _memory, ...meta } = msg.meta;
+      // Model traces and tool memory are internal replay state, not something an operator needs.
+      const meta = { ...msg.meta };
+      delete meta.trace;
+      delete meta.memory;
       return { id: msg.id, role: msg.role, content: msg.content, meta, createdAt: iso(msg.createdAt) };
     }),
     toolCalls: tools.map((t) => ({ id: t.id, name: t.name, ok: t.ok, durationMs: t.durationMs, input: t.input, createdAt: iso(t.createdAt) })),
@@ -286,10 +291,16 @@ export async function getSnapshot(business: BusinessOption): Promise<Snapshot> {
 /* CRM                                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Single-table selects render columns unqualified, which a correlated subquery
+ * would resolve against its own table; the outer customer id is always written out.
+ */
+const customerRef = sql.raw(`"customers"."id"`);
+
 /** Customers who only ever appeared in evaluation conversations are hidden. */
 const realCustomer = sql`not (
-  exists (select 1 from conversations x where x.customer_id = ${cu.id} and x.is_eval)
-  and not exists (select 1 from conversations y where y.customer_id = ${cu.id} and not y.is_eval)
+  exists (select 1 from conversations x where x.customer_id = ${customerRef} and x.is_eval)
+  and not exists (select 1 from conversations y where y.customer_id = ${customerRef} and not y.is_eval)
 )`;
 
 export async function listCustomers(businessId: string, query?: string): Promise<CustomerRow[]> {
@@ -305,14 +316,14 @@ export async function listCustomers(businessId: string, query?: string): Promise
   const rows = await db
     .select({
       customer: cu,
-      conversations: sql<number>`(select count(*)::int from conversations x where x.customer_id = ${cu.id} and not x.is_eval)`,
-      appointments: sql<number>`(select count(*)::int from appointments a where a.customer_id = ${cu.id} and ${notEvalConversation(sql`a.conversation_id`)})`,
-      openTickets: sql<number>`(select count(*)::int from tickets t where t.customer_id = ${cu.id} and t.status <> 'resolved' and ${notEvalConversation(sql`t.conversation_id`)})`,
-      lastContactAt: sql<string | null>`(select max(x.last_activity_at) from conversations x where x.customer_id = ${cu.id} and not x.is_eval)`,
+      conversations: sql<number>`(select count(*)::int from conversations x where x.customer_id = ${customerRef} and not x.is_eval)`,
+      appointments: sql<number>`(select count(*)::int from appointments a where a.customer_id = ${customerRef} and ${notEvalConversation(sql`a.conversation_id`)})`,
+      openTickets: sql<number>`(select count(*)::int from tickets t where t.customer_id = ${customerRef} and t.status <> 'resolved' and ${notEvalConversation(sql`t.conversation_id`)})`,
+      lastContactAt: sql<string | null>`(select max(x.last_activity_at) from conversations x where x.customer_id = ${customerRef} and not x.is_eval)`,
     })
     .from(cu)
     .where(and(eq(cu.businessId, businessId), realCustomer, search))
-    .orderBy(sql`(select max(x.last_activity_at) from conversations x where x.customer_id = ${cu.id} and not x.is_eval) desc nulls last`, desc(cu.createdAt))
+    .orderBy(sql`(select max(x.last_activity_at) from conversations x where x.customer_id = ${customerRef} and not x.is_eval) desc nulls last`, desc(cu.createdAt))
     .limit(200);
   return rows.map(({ customer, conversations, appointments, openTickets, lastContactAt }) => ({
     id: customer.id,

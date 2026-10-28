@@ -5,6 +5,14 @@ import type { ConsoleEvent } from "@/lib/console/types";
 import { errorMessage, getJson } from "./api";
 import { useConsole } from "./provider";
 
+async function fetchResource<T>(url: string, signal: AbortSignal): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  try {
+    return { ok: true, data: await getJson<T>(url, signal) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 type ResourceOptions = {
   /** Return true when a batch of live events should trigger a refetch. Resyncs always refetch. */
   refreshOn?: (events: ConsoleEvent[]) => boolean;
@@ -31,23 +39,30 @@ export function useResource<T>(url: string | null, options: ResourceOptions = {}
     controller.current?.abort();
     const ac = new AbortController();
     controller.current = ac;
-    try {
-      const next = await getJson<T>(url, ac.signal);
-      if (ac.signal.aborted) return;
-      setData(next);
+    const result = await fetchResource<T>(url, ac.signal);
+    if (ac.signal.aborted) return;
+    if (result.ok) {
+      setData(result.data);
       setError(null);
-      setLoadedUrl(url);
-    } catch (err) {
-      if (ac.signal.aborted) return;
-      setError(errorMessage(err));
-      setLoadedUrl(url);
-    }
+    } else setError(result.error);
+    setLoadedUrl(url);
   }, [url]);
 
   useEffect(() => {
-    void load();
-    return () => controller.current?.abort();
-  }, [load]);
+    if (!url) return;
+    const ac = new AbortController();
+    controller.current?.abort();
+    controller.current = ac;
+    void fetchResource<T>(url, ac.signal).then((result) => {
+      if (ac.signal.aborted) return;
+      if (result.ok) {
+        setData(result.data);
+        setError(null);
+      } else setError(result.error);
+      setLoadedUrl(url);
+    });
+    return () => ac.abort();
+  }, [url]);
 
   useEffect(() => {
     if (!url) return;

@@ -11,6 +11,7 @@ import { MessageCard } from "./cards";
 export function Transcript({ messages, customerLabel, agentName }: { messages: TranscriptMessage[]; customerLabel: string; agentName: string }) {
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const seen = useRef(0);
   const count = messages.length;
 
   useEffect(() => {
@@ -26,7 +27,16 @@ export function Transcript({ messages, customerLabel, agentName }: { messages: T
   // Follow new messages only while the operator is reading the latest ones.
   useLayoutEffect(() => {
     const el = scroller.current;
-    if (el && pinned.current) el.scrollTo({ top: el.scrollHeight, behavior: count > 0 ? "smooth" : "auto" });
+    const first = seen.current === 0;
+    seen.current = count;
+    if (!el || !pinned.current) return;
+    if (first) {
+      el.scrollTop = el.scrollHeight;
+      // Cards and entry animations settle a frame later; land on the true bottom.
+      const id = window.requestAnimationFrame(() => (el.scrollTop = el.scrollHeight));
+      return () => window.cancelAnimationFrame(id);
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [count]);
 
   return (
@@ -74,7 +84,7 @@ function Bubble({ message: m, customerLabel, agentName }: { message: TranscriptM
       <div className="flex items-center gap-2 px-1 text-2xs text-fg-subtle">
         <span className={cn("font-medium", human ? "text-info" : customer ? "text-fg-muted" : "text-fg-muted")}>{author}</span>
         {!customer && !human ? <span className="rounded border border-border px-1 font-mono text-[9.5px] uppercase tracking-wider text-fg-faint">AI</span> : null}
-        {human && m.meta.suggested ? <span className="font-mono text-[9.5px] text-fg-faint">edited draft</span> : null}
+        {human && m.meta.suggested ? <span className="font-mono text-[9.5px] text-fg-faint">from AI draft</span> : null}
         <span className="tabular font-mono text-fg-faint">{formatClock(m.createdAt)}</span>
         {customer && typeof m.meta.sentiment === "number" ? (
           <span className={cn("font-mono", m.meta.sentiment <= -0.25 ? "text-warning" : m.meta.sentiment >= 0.25 ? "text-success" : "text-fg-faint")}>

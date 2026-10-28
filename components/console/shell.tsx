@@ -30,13 +30,19 @@ function isTyping(target: EventTarget | null): boolean {
 function ShellFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteKey, setPaletteKey] = useState(0);
+  const openPalette = useCallback(() => {
+    setPaletteKey((k) => k + 1);
+    setPaletteOpen(true);
+  }, []);
   const leader = useRef<number | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPaletteOpen((o) => !o);
+        if (paletteOpen) setPaletteOpen(false);
+        else openPalette();
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || paletteOpen) return;
@@ -54,13 +60,13 @@ function ShellFrame({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, paletteOpen]);
+  }, [router, paletteOpen, openPalette]);
 
   return (
     <div className="flex h-dvh min-h-0 w-full overflow-hidden bg-bg text-fg">
-      <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
+      <Sidebar onOpenPalette={openPalette} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette key={paletteKey} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <Toaster />
     </div>
   );

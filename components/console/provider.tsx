@@ -37,6 +37,14 @@ const SSE_RETRY_FROM_POLLING_MS = 30_000;
 const SNAPSHOT_DEBOUNCE_MS = 350;
 export const OPERATOR = "Priya (front desk)";
 
+async function fetchSnapshot(businessId: string): Promise<Snapshot | Error> {
+  try {
+    return await getJson<Snapshot>(`/api/console/snapshot?business=${businessId}`);
+  } catch (err) {
+    return new Error(errorMessage(err));
+  }
+}
+
 function readStoredBusiness(): string | null {
   try {
     return localStorage.getItem(BUSINESS_KEY);
@@ -103,19 +111,25 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     setBusinessId(id);
   }, []);
 
+  /** Applies a fetched snapshot, ignoring responses for a business the operator has since switched away from. */
+  const applySnapshot = useCallback(
+    (result: Snapshot | Error): Snapshot | null => {
+      if (result instanceof Error) {
+        setSnapshotError(result.message);
+        return null;
+      }
+      if (result.business.id !== businessId) return null;
+      setSnapshot(result);
+      setSnapshotError(null);
+      return result;
+    },
+    [businessId],
+  );
+
   const loadSnapshot = useCallback(async (): Promise<Snapshot | null> => {
     if (!businessId) return null;
-    try {
-      const next = await getJson<Snapshot>(`/api/console/snapshot?business=${businessId}`);
-      if (next.business.id !== businessId) return null;
-      setSnapshot(next);
-      setSnapshotError(null);
-      return next;
-    } catch (err) {
-      setSnapshotError(errorMessage(err));
-      return null;
-    }
-  }, [businessId]);
+    return applySnapshot(await fetchSnapshot(businessId));
+  }, [businessId, applySnapshot]);
 
   const refreshSnapshot = useCallback(async () => {
     await loadSnapshot();
@@ -201,8 +215,9 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    void loadSnapshot().then((first) => {
+    void fetchSnapshot(businessId).then((result) => {
       if (disposed) return;
+      const first = applySnapshot(result);
       if (first && cursor.current === null) cursor.current = first.lastEventId;
       connect();
     });
@@ -214,7 +229,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(retryTimer);
       window.clearTimeout(debounce);
     };
-  }, [businessId, loadSnapshot, broadcast]);
+  }, [businessId, loadSnapshot, applySnapshot, broadcast]);
 
   const value = useMemo<ConsoleContext>(
     () => ({
