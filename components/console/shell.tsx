@@ -11,6 +11,7 @@ import { useResetDemo, useTheme } from "./actions";
 import { CommandPalette } from "./command-palette";
 import { isActive, navFor } from "./nav";
 import { Popover } from "./popover";
+import { AgentLinksButton } from "./agent-links";
 import { ConsoleProvider, useConsole } from "./provider";
 import { Toaster } from "./toaster";
 
@@ -89,6 +90,7 @@ function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       </div>
       <div className="px-3">
         <BusinessSwitcher />
+        <AgentLinksButton />
       </div>
       <button
         type="button"

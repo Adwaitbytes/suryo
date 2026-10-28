@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { Headphones, MessageSquareText, Radio } from "lucide-react";
+import { AgentLinksPanel } from "../agent-links";
 import { EmptyState } from "@/components/ui/primitives";
 import type { LiveConversation } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
@@ -59,11 +60,14 @@ export function ConversationList({
         {loading ? (
           <ListSkeleton />
         ) : visible.length === 0 ? (
-          <EmptyState
-            icon={<Radio className="size-4" />}
-            title={filter === "open" ? "No one is on the line right now" : "No conversations in the last day"}
-            body={filter === "open" ? "New calls and chats appear here the moment they start. Open the customer chat from the command menu to try one." : "Once customers call or chat, their conversations collect here."}
-          />
+          <div>
+            <EmptyState
+              icon={<Radio className="size-4" />}
+              title={filter === "open" ? "No one is on the line right now" : "No conversations in the last day"}
+              body="New calls and chats appear here the moment they start. Try one now:"
+            />
+            <AgentLinksPanel className="mx-4 -mt-4 mb-6 rounded-xl border border-border bg-surface p-4" />
+          </div>
         ) : (
           <ul className="divide-y divide-border">
             <AnimatePresence initial={false}>
